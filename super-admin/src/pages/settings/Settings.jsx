@@ -667,7 +667,7 @@ export default function Settings() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0' }}>
               <div>
                 <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>Two-Factor Authentication (2FA)</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>Requires entering an email OTP code (123456) when logging in</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>Requires entering an email OTP code when logging in</div>
               </div>
               <div className="kfpl-toggle" onClick={handleTfaToggle}>
                 <div className={`kfpl-toggle-track ${twoFactor ? 'active' : ''}`}>
