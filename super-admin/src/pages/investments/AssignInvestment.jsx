@@ -196,7 +196,9 @@ export default function AssignInvestment() {
             risk: 25, // default mock risk
             date: form.dateOfJoining,
             status: 'Active',
-            contractPeriod: period
+            contractPeriod: period,
+            projectId: selectedProjectId ? Number(selectedProjectId) : null,
+            projectName: selectedProjectId ? (projects.find(p => String(p.id) === String(selectedProjectId))?.name || '') : ''
           });
         });
         

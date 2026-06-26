@@ -3,7 +3,7 @@
    Description: Investment module with allocation chart, ROI table, calculator, dividend bonus
    ============================================================ */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { mockInvestments, mockROIHistory, mockTotalInvested, mockDividendBonus, mockClient } from '../../data/mockData';
 
 const CHART_COLORS = ['#10B981', '#0F766E', '#2563EB', '#F59E0B', '#7C3AED', '#0891B2'];
@@ -313,7 +313,69 @@ export default function InvestmentOverview() {
   const [segmentFilter, setSegmentFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [yearFilter, setYearFilter] = useState('all');
-  const [commissionStatusFilter, setCommissionStatusFilter] = useState('all');
+  const [clientDividends, setClientDividends] = useState([]);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      const stored = localStorage.getItem('kfpl_project_dividends');
+      if (stored) {
+        try {
+          const allDividends = JSON.parse(stored);
+          const myDividends = allDividends.filter(
+            div => String(div.clientId).toUpperCase() === String(mockClient.clientId).toUpperCase()
+          );
+          setClientDividends(myDividends);
+        } catch (e) {
+          console.error('Error parsing dividends:', e);
+        }
+      } else {
+        const defaultDivs = [
+          {
+            id: 1,
+            projectId: 1,
+            projectName: 'Project Astra',
+            segment: 'Film Making',
+            clientId: 'KFPL-1001',
+            clientName: 'Rajesh Kumar',
+            amount: 150000,
+            creditDate: '2025-04-15T00:00:00.000Z',
+            adminNote: 'Annual performance bonus for exceptional project returns.'
+          },
+          {
+            id: 2,
+            projectId: 1,
+            projectName: 'Project Astra',
+            segment: 'Film Making',
+            clientId: 'KFPL-1002',
+            clientName: 'Priya Sharma',
+            amount: 120000,
+            creditDate: '2025-04-15T00:00:00.000Z',
+            adminNote: 'Annual performance bonus for exceptional project returns.'
+          },
+          {
+            id: 3,
+            projectId: 2,
+            projectName: 'Rhythm Series',
+            segment: 'Music',
+            clientId: 'KFPL-1004',
+            clientName: 'Suresh Patel',
+            amount: 50000,
+            creditDate: '2025-05-10T00:00:00.000Z',
+            adminNote: 'Streaming milestone bonus for Rhythm catalogue.'
+          }
+        ];
+        localStorage.setItem('kfpl_project_dividends', JSON.stringify(defaultDivs));
+        const myDividends = defaultDivs.filter(
+          div => String(div.clientId).toUpperCase() === String(mockClient.clientId).toUpperCase()
+        );
+        setClientDividends(myDividends);
+      }
+    };
+
+    handleUpdate();
+    window.addEventListener('storage', handleUpdate);
+    return () => window.removeEventListener('storage', handleUpdate);
+  }, [mockClient.clientId]);
 
   const uniqueSegments = Array.from(new Set(mockInvestments.map(i => i.segment)));
   const uniqueStatuses = Array.from(new Set(mockInvestments.map(i => i.status)));
@@ -325,12 +387,7 @@ export default function InvestmentOverview() {
     return true;
   });
 
-  const filteredCommissionHistory = mockClient.agentCommission?.history
-    ? mockClient.agentCommission.history.filter(com => {
-        if (commissionStatusFilter !== 'all' && com.status.toLowerCase() !== commissionStatusFilter.toLowerCase()) return false;
-        return true;
-      })
-    : [];
+
 
   const formatAmount = (num) => {
     if (num >= 10000000) return `\u20B9${(num / 10000000).toFixed(2)} Cr`;
@@ -672,90 +729,46 @@ export default function InvestmentOverview() {
         </div>
       </div>
 
-      {/* Agent Commission Section */}
-      {mockClient.agentCommission && (
-        <div className="kfpl-table-wrapper kfpl-investment-table">
-          <div className="kfpl-table-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-            <div>
-              <h3 className="kfpl-table-title">Agent Commission</h3>
-              <p className="kfpl-investment-card-subtitle">Commission earned by your agent ({mockClient.agentName}) on your investment</p>
-              <div style={{ marginTop: '12px' }}>
-                <select
-                  value={commissionStatusFilter}
-                  onChange={e => setCommissionStatusFilter(e.target.value)}
-                  className="kfpl-select"
-                  style={{ width: '140px', padding: '8px 12px', fontSize: '0.875rem', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="paid">Paid</option>
-                  <option value="pending">Pending</option>
-                </select>
+
+
+      {/* Dynamic Dividend Earnings Section */}
+      <div style={{ marginTop: '28px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '10px', margin: '0 0 4px 0' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20, color: 'var(--color-gold-dark)' }}>
+            <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+          Dividend & Bonus Earnings
+        </h3>
+        
+        {clientDividends.length === 0 ? (
+          <div style={{ padding: '32px', textAlign: 'center', background: 'rgba(255, 255, 255, 0.42)', border: '1px dashed var(--color-border)', borderRadius: '12px', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
+            No dividends credited yet for your active investments.
+          </div>
+        ) : (
+          clientDividends.map(div => (
+            <div className="kfpl-dividend-card" key={div.id}>
+              <div className="kfpl-dividend-card-icon" aria-hidden="true" style={{ color: 'var(--color-gold-dark)' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+                  <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                </svg>
+              </div>
+              <div className="kfpl-dividend-card-content">
+                <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 4px 0' }}>
+                  <span>Dividend Bonus Credited</span>
+                  <span style={{ color: 'var(--color-success)', fontSize: '1.05rem', fontWeight: 800 }}>+{formatAmount(div.amount)}</span>
+                </h3>
+                <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: '0.8125rem' }}>
+                  Received from <strong>{div.projectName}</strong> ({div.segment})
+                </p>
+                <p className="kfpl-dividend-card-note" style={{ marginTop: '6px', color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
+                  Credited on {new Date(div.creditDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  {div.adminNote && ` — ${div.adminNote}`}
+                </p>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <div style={{
-                background: 'var(--color-surface-alt, #f0fdf4)', borderRadius: '10px',
-                padding: '8px 16px', textAlign: 'center',
-              }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>One-Time</div>
-                <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-success)' }}>{mockClient.agentCommission.oneTimePercent}%</div>
-              </div>
-              <div style={{
-                background: 'var(--color-surface-alt, #eff6ff)', borderRadius: '10px',
-                padding: '8px 16px', textAlign: 'center',
-              }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Monthly</div>
-                <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-navy, #1565C0)' }}>{mockClient.agentCommission.monthlyPercent}%</div>
-              </div>
-              <div style={{
-                background: 'var(--color-surface-alt, #fef3c7)', borderRadius: '10px',
-                padding: '8px 16px', textAlign: 'center',
-              }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Total Paid</div>
-                <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-gold-dark, #B8860B)' }}>{formatAmount(mockClient.agentCommission.totalPaid)}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="kfpl-table-container">
-            <table className="kfpl-table">
-              <thead>
-                <tr>
-                  <th>Period</th>
-                  <th>Date</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCommissionHistory.map(com => (
-                  <tr key={com.id}>
-                    <td className="kfpl-table-cell-primary">{com.month}</td>
-                    <td>{new Date(com.date).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
-                    <td className="kfpl-table-cell-mono">{formatAmount(com.amount)}</td>
-                    <td><span className={`kfpl-badge kfpl-badge--${com.status.toLowerCase()}`}>{com.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {mockDividendBonus && (
-        <div className="kfpl-dividend-card">
-          <div className="kfpl-dividend-card-icon" aria-hidden="true">{'\u20B9'}</div>
-          <div className="kfpl-dividend-card-content">
-            <h3>Dividend Bonus Credited</h3>
-            <p>
-              {formatAmount(mockDividendBonus.amount)} from {mockDividendBonus.project} ({mockDividendBonus.segment})
-            </p>
-            <p className="kfpl-dividend-card-note">
-              Credited on {new Date(mockDividendBonus.creditDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })} {'\u2014'} {mockDividendBonus.adminNote}
-            </p>
-          </div>
-        </div>
-      )}
+          ))
+        )}
+      </div>
     </div>
   );
 }

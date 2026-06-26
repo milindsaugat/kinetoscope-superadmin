@@ -233,13 +233,52 @@ if (typeof window !== 'undefined') {
         }
 
         // ── Load and Sync from Shared LocalStorage ──
-        const storedInvestors = localStorage.getItem('kfpl_investors');
+        let storedInvestors = localStorage.getItem('kfpl_investors');
         const storedApprovals = localStorage.getItem('kfpl_approvals');
         
         let matchingInvestor = null;
         if (storedInvestors) {
           try {
-            const investorsList = JSON.parse(storedInvestors);
+            let investorsList = JSON.parse(storedInvestors);
+            let updated = false;
+            investorsList = investorsList.map(inv => {
+              if (inv.investments) {
+                inv.investments = inv.investments.map(subInv => {
+                  if (!subInv.projectId) {
+                    if (subInv.segment === 'Film Making') {
+                      subInv.projectId = 1;
+                      subInv.projectName = 'Project Astra';
+                      updated = true;
+                    } else if (subInv.segment === 'Music') {
+                      subInv.projectId = 2;
+                      subInv.projectName = 'Rhythm Series';
+                      updated = true;
+                    } else if (subInv.segment === 'Distribution') {
+                      subInv.projectId = 3;
+                      subInv.projectName = 'Meridian Release';
+                      updated = true;
+                    } else if (subInv.segment === 'Content IP Bank') {
+                      subInv.projectId = 4;
+                      subInv.projectName = 'Archive Digitization';
+                      updated = true;
+                    } else if (subInv.segment === 'Trading & Syndication') {
+                      subInv.projectId = 5;
+                      subInv.projectName = 'Content Deal Q2';
+                      updated = true;
+                    } else if (subInv.segment === 'Film Exhibition') {
+                      subInv.projectId = 6;
+                      subInv.projectName = 'Screen Network';
+                      updated = true;
+                    }
+                  }
+                  return subInv;
+                });
+              }
+              return inv;
+            });
+            if (updated) {
+              localStorage.setItem('kfpl_investors', JSON.stringify(investorsList));
+            }
             matchingInvestor = investorsList.find(
               inv => (inv.email && inv.email.toLowerCase() === loginEmail.toLowerCase()) || 
                      (inv.clientId && inv.clientId.toUpperCase() === (parsed.client.clientId || '').toUpperCase())
@@ -272,7 +311,9 @@ if (typeof window !== 'undefined') {
               contractPeriod: '24 months',
               status: inv.status === 'active' ? 'Active' : 'Closed',
               roiAllocated: inv.roi || 1.2,
-              roiReceived: inv.roiReceived || (inv.roi ? inv.roi * 0.8 : 0.96)
+              roiReceived: inv.roiReceived || (inv.roi ? inv.roi * 0.8 : 0.96),
+              projectId: inv.projectId || null,
+              projectName: inv.projectName || ''
             }));
           }
           

@@ -8,17 +8,18 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Modal from '../../components/ui/Modal';
 import Badge from '../../components/ui/Badge';
+import DataTable from '../../components/ui/DataTable';
 import { INVESTMENT_SEGMENTS, formatCurrency } from '../../data/mockData';
 import { useToast } from '../../components/ui/Toast';
 
 // ── Default project data ────────────────────────
 const DEFAULT_PROJECTS = [
-  { id: 1, name: 'Project Astra', segment: 'Film Making', status: 'In Production', value: '₹2.5 Cr', milestone: 65, summary: 'Flagship feature slate moving through production with cast-led marketing upside.', risk: 'Medium', horizon: 'Q4 2025', roi: '1.25%', health: 'On Track', media: [] },
-  { id: 2, name: 'Rhythm Series', segment: 'Music', status: 'Recording', value: '₹1.8 Cr', milestone: 40, summary: 'Music catalogue and album pipeline with recurring streaming revenue potential.', risk: 'Low', horizon: 'Released catalogue', roi: '0.83%', health: 'On Track', media: [] },
-  { id: 3, name: 'Meridian Release', segment: 'Distribution', status: 'Active', value: '₹3.2 Cr', milestone: 80, summary: 'Distribution portfolio across domestic and digital channels.', risk: 'Medium', horizon: '18 month cycle', roi: '1.0%', health: 'Performing', media: [] },
-  { id: 4, name: 'Archive Digitization', segment: 'Content IP Bank', status: 'Ongoing', value: '₹1.4 Cr', milestone: 55, summary: 'Curated content IP vault focused on long-term licensing.', risk: 'Low', horizon: '24 month cycle', roi: '1.17%', health: 'Building', media: [] },
-  { id: 5, name: 'Content Deal Q2', segment: 'Trading & Syndication', status: 'Negotiation', value: '₹2.1 Cr', milestone: 30, summary: 'Trade and syndication desk for packaging content deal flow.', risk: 'Medium', horizon: '12 month cycle', roi: '1.08%', health: 'Active', media: [] },
-  { id: 6, name: 'Screen Network', segment: 'Film Exhibition', status: 'Planning', value: '₹4.0 Cr', milestone: 15, summary: 'Cinema exhibition rollout across priority micro-markets.', risk: 'Medium High', horizon: 'Planning phase', roi: '0.92%', health: 'Planned', media: [] },
+  { id: 1, name: 'Project Astra', segment: 'Film Making', status: 'In Production', value: '₹2.5 Cr', milestone: 65, summary: 'Flagship feature slate moving through production with cast-led marketing upside.', risk: 'Medium', horizon: 'Q4 2025', roi: '1.25%', health: 'On Track', media: [], totalDividendPool: 1000000, dividendsDistributed: 270000 },
+  { id: 2, name: 'Rhythm Series', segment: 'Music', status: 'Recording', value: '₹1.8 Cr', milestone: 40, summary: 'Music catalogue and album pipeline with recurring streaming revenue potential.', risk: 'Low', horizon: 'Released catalogue', roi: '0.83%', health: 'On Track', media: [], totalDividendPool: 500000, dividendsDistributed: 50000 },
+  { id: 3, name: 'Meridian Release', segment: 'Distribution', status: 'Active', value: '₹3.2 Cr', milestone: 80, summary: 'Distribution portfolio across domestic and digital channels.', risk: 'Medium', horizon: '18 month cycle', roi: '1.0%', health: 'Performing', media: [], totalDividendPool: 0, dividendsDistributed: 0 },
+  { id: 4, name: 'Archive Digitization', segment: 'Content IP Bank', status: 'Ongoing', value: '₹1.4 Cr', milestone: 55, summary: 'Curated content IP vault focused on long-term licensing.', risk: 'Low', horizon: '24 month cycle', roi: '1.17%', health: 'Building', media: [], totalDividendPool: 0, dividendsDistributed: 0 },
+  { id: 5, name: 'Content Deal Q2', segment: 'Trading & Syndication', status: 'Negotiation', value: '₹2.1 Cr', milestone: 30, summary: 'Trade and syndication desk for packaging content deal flow.', risk: 'Medium', horizon: '12 month cycle', roi: '1.08%', health: 'Active', media: [], totalDividendPool: 0, dividendsDistributed: 0 },
+  { id: 6, name: 'Screen Network', segment: 'Film Exhibition', status: 'Planning', value: '₹4.0 Cr', milestone: 15, summary: 'Cinema exhibition rollout across priority micro-markets.', risk: 'Medium High', horizon: 'Planning phase', roi: '0.92%', health: 'Planned', media: [], totalDividendPool: 0, dividendsDistributed: 0 },
 ];
 
 const SEGMENT_ABBR = {
@@ -45,6 +46,9 @@ export default function PortfolioManagement() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [drawerProject, setDrawerProject] = useState(null);
   const [uploadTarget, setUploadTarget] = useState(null);
+  const [activePage, setActivePage] = useState('projects'); // 'projects' or 'dividends'
+  const [dividends, setDividends] = useState([]);
+  const [investorList, setInvestorList] = useState([]);
 
   // Segment & Statuses configurations state
   const [segmentsConfig, setSegmentsConfig] = useState([]);
@@ -77,6 +81,19 @@ export default function PortfolioManagement() {
             p.roi = `${(numRoi / 12).toFixed(2)}%`;
             migrated = true;
           }
+          if (p.totalDividendPool === undefined) {
+            if (p.id === 1) {
+              p.totalDividendPool = 1000000;
+              p.dividendsDistributed = 270000;
+            } else if (p.id === 2) {
+              p.totalDividendPool = 500000;
+              p.dividendsDistributed = 50000;
+            } else {
+              p.totalDividendPool = 0;
+              p.dividendsDistributed = 0;
+            }
+            migrated = true;
+          }
           return p;
         });
         if (migrated) {
@@ -90,6 +107,104 @@ export default function PortfolioManagement() {
     } else {
       setProjects(DEFAULT_PROJECTS);
       localStorage.setItem(LS_KEY, JSON.stringify(DEFAULT_PROJECTS));
+    }
+
+    // Load and migrate investors
+    const storedInvestors = localStorage.getItem('kfpl_investors');
+    if (storedInvestors) {
+      try {
+        let parsed = JSON.parse(storedInvestors);
+        let updated = false;
+        parsed = parsed.map(inv => {
+          if (inv.investments) {
+            inv.investments = inv.investments.map(subInv => {
+              if (!subInv.projectId) {
+                if (subInv.segment === 'Film Making') {
+                  subInv.projectId = 1;
+                  subInv.projectName = 'Project Astra';
+                  updated = true;
+                } else if (subInv.segment === 'Music') {
+                  subInv.projectId = 2;
+                  subInv.projectName = 'Rhythm Series';
+                  updated = true;
+                } else if (subInv.segment === 'Distribution') {
+                  subInv.projectId = 3;
+                  subInv.projectName = 'Meridian Release';
+                  updated = true;
+                } else if (subInv.segment === 'Content IP Bank') {
+                  subInv.projectId = 4;
+                  subInv.projectName = 'Archive Digitization';
+                  updated = true;
+                } else if (subInv.segment === 'Trading & Syndication') {
+                  subInv.projectId = 5;
+                  subInv.projectName = 'Content Deal Q2';
+                  updated = true;
+                } else if (subInv.segment === 'Film Exhibition') {
+                  subInv.projectId = 6;
+                  subInv.projectName = 'Screen Network';
+                  updated = true;
+                }
+              }
+              return subInv;
+            });
+          }
+          return inv;
+        });
+        if (updated) {
+          localStorage.setItem('kfpl_investors', JSON.stringify(parsed));
+        }
+        setInvestorList(parsed);
+      } catch (e) {
+        console.error('Error migrating investors:', e);
+      }
+    }
+
+    // Load dividends
+    const storedDivs = localStorage.getItem('kfpl_project_dividends');
+    if (storedDivs) {
+      try {
+        setDividends(JSON.parse(storedDivs));
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      const defaultDivs = [
+        {
+          id: 1,
+          projectId: 1,
+          projectName: 'Project Astra',
+          segment: 'Film Making',
+          clientId: 'KFPL-1001',
+          clientName: 'Rajesh Kumar',
+          amount: 150000,
+          creditDate: '2025-04-15T00:00:00.000Z',
+          adminNote: 'Annual performance bonus for exceptional project returns.'
+        },
+        {
+          id: 2,
+          projectId: 1,
+          projectName: 'Project Astra',
+          segment: 'Film Making',
+          clientId: 'KFPL-1002',
+          clientName: 'Priya Sharma',
+          amount: 120000,
+          creditDate: '2025-04-15T00:00:00.000Z',
+          adminNote: 'Annual performance bonus for exceptional project returns.'
+        },
+        {
+          id: 3,
+          projectId: 2,
+          projectName: 'Rhythm Series',
+          segment: 'Music',
+          clientId: 'KFPL-1004',
+          clientName: 'Suresh Patel',
+          amount: 50000,
+          creditDate: '2025-05-10T00:00:00.000Z',
+          adminNote: 'Streaming milestone bonus for Rhythm catalogue.'
+        }
+      ];
+      setDividends(defaultDivs);
+      localStorage.setItem('kfpl_project_dividends', JSON.stringify(defaultDivs));
     }
 
     // Load segments and statuses configuration
@@ -444,6 +559,12 @@ export default function PortfolioManagement() {
   }, [drawerProject]);
 
   // ── Drawer Portal ─────────────────────────
+  const projectInvestors = drawerProject
+    ? investorList.filter(inv =>
+        (inv.investments || []).some(subInv => String(subInv.projectId) === String(drawerProject.id))
+      )
+    : [];
+
   const drawer = drawerProject && createPortal(
     <>
       <div className="kfpl-portfolio-drawer-overlay" onClick={() => setDrawerProject(null)} />
@@ -568,6 +689,186 @@ export default function PortfolioManagement() {
             )}
           </div>
 
+          {/* Dividend Management Section */}
+          <div className="kfpl-portfolio-drawer-section" style={{ borderTop: '1px solid var(--color-border)', paddingTop: '20px', marginTop: '20px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1rem', fontWeight: 800 }}>Dividend Management</h3>
+            
+            {/* Pool Metrics */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+              <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Total Pool</div>
+                <strong style={{ fontSize: '0.9rem', color: 'var(--color-gold)' }}>{formatCurrency(drawerProject.totalDividendPool || 0)}</strong>
+              </div>
+              <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Distributed</div>
+                <strong style={{ fontSize: '0.9rem', color: 'var(--color-success)' }}>{formatCurrency(drawerProject.dividendsDistributed || 0)}</strong>
+              </div>
+              <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Remaining</div>
+                <strong style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                  {formatCurrency((drawerProject.totalDividendPool || 0) - (drawerProject.dividendsDistributed || 0))}
+                </strong>
+              </div>
+            </div>
+
+            {/* Set Pool Input */}
+            <div className="kfpl-input-group" style={{ marginBottom: '16px' }}>
+              <label className="kfpl-input-label" style={{ fontSize: '0.75rem' }}>Configure / Increase Dividend Pool (₹)</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="number"
+                  className="kfpl-input kfpl-input--sm"
+                  placeholder="Enter pool amount"
+                  id="div-pool-input"
+                  style={{ flex: 1, height: '36px', fontSize: '0.8125rem' }}
+                />
+                <button
+                  type="button"
+                  className="kfpl-btn kfpl-btn--primary kfpl-btn--sm"
+                  style={{ height: '36px', minWidth: '80px' }}
+                  onClick={() => {
+                    const input = document.getElementById('div-pool-input');
+                    const amt = parseFloat(input?.value);
+                    if (isNaN(amt) || amt <= 0) {
+                      addToast('Please enter a valid positive pool amount', 'error', 'Error');
+                      return;
+                    }
+                    const updatedProjects = projects.map(p => {
+                      if (p.id === drawerProject.id) {
+                        return { ...p, totalDividendPool: amt };
+                      }
+                      return p;
+                    });
+                    persist(updatedProjects);
+                    setDrawerProject({ ...drawerProject, totalDividendPool: amt });
+                    addToast(`Dividend pool set to ${formatCurrency(amt)} for ${drawerProject.name}`, 'success', 'Success');
+                    if (input) input.value = '';
+                  }}
+                >
+                  Set Pool
+                </button>
+              </div>
+            </div>
+
+            {/* Allotment Form (only if pool is set) */}
+            {drawerProject.totalDividendPool > 0 && (
+              <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '12px', marginTop: '12px' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '0.8125rem', color: 'var(--color-text-secondary)', fontWeight: 700 }}>
+                  Allot Dividend to Investor
+                </h4>
+                {projectInvestors.length === 0 ? (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--color-danger)', fontStyle: 'italic', textAlign: 'center', padding: '8px' }}>
+                    No active investors found for this project.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div className="kfpl-input-group">
+                      <label className="kfpl-input-label" style={{ fontSize: '0.7rem' }}>Select Client</label>
+                      <select id="div-client-select" className="kfpl-select" style={{ height: '36px', fontSize: '0.8125rem', padding: '0 10px' }}>
+                        <option value="">Choose investor...</option>
+                        {projectInvestors.map(inv => {
+                          const projectInvestments = (inv.investments || []).filter(subInv => String(subInv.projectId) === String(drawerProject.id));
+                          const totalProjectAmt = projectInvestments.reduce((sum, subInv) => sum + (subInv.amount || 0), 0);
+                          return (
+                            <option key={inv.id} value={inv.clientId}>
+                              {inv.name} ({inv.clientId} — Invested: {formatCurrency(totalProjectAmt)})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div className="kfpl-input-group">
+                        <label className="kfpl-input-label" style={{ fontSize: '0.7rem' }}>Amount (₹)</label>
+                        <input id="div-allot-amount" type="number" className="kfpl-input" placeholder="e.g. 50000" style={{ height: '36px', fontSize: '0.8125rem' }} />
+                      </div>
+                      <div className="kfpl-input-group">
+                        <label className="kfpl-input-label" style={{ fontSize: '0.7rem' }}>Remarks / Note</label>
+                        <input id="div-allot-note" type="text" className="kfpl-input" placeholder="e.g. Hit bonus" style={{ height: '36px', fontSize: '0.8125rem' }} />
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="kfpl-btn kfpl-btn--primary kfpl-btn--sm"
+                      style={{ marginTop: '6px' }}
+                      onClick={() => {
+                        const clientSelect = document.getElementById('div-client-select');
+                        const amtInput = document.getElementById('div-allot-amount');
+                        const noteInput = document.getElementById('div-allot-note');
+                        
+                        const selectedClientId = clientSelect?.value;
+                        const allotAmt = parseFloat(amtInput?.value);
+                        const note = noteInput?.value || '';
+
+                        if (!selectedClientId) {
+                          addToast('Please select a client', 'error', 'Error');
+                          return;
+                        }
+                        if (isNaN(allotAmt) || allotAmt <= 0) {
+                          addToast('Please enter a valid allotment amount', 'error', 'Error');
+                          return;
+                        }
+
+                        const remainingPool = (drawerProject.totalDividendPool || 0) - (drawerProject.dividendsDistributed || 0);
+                        if (allotAmt > remainingPool) {
+                          addToast(`Allotment exceeds remaining pool of ${formatCurrency(remainingPool)}`, 'error', 'Error');
+                          return;
+                        }
+
+                        const selectedInv = investorList.find(inv => inv.clientId === selectedClientId);
+
+                        const newAllotment = {
+                          id: Date.now(),
+                          projectId: drawerProject.id,
+                          projectName: drawerProject.name,
+                          segment: drawerProject.segment,
+                          clientId: selectedClientId,
+                          clientName: selectedInv?.name || 'Investor',
+                          amount: allotAmt,
+                          creditDate: new Date().toISOString(),
+                          adminNote: note || 'Project dividend distribution'
+                        };
+
+                        const storedDivs = localStorage.getItem('kfpl_project_dividends');
+                        let parsedDivs = [];
+                        if (storedDivs) {
+                          try { parsedDivs = JSON.parse(storedDivs); } catch (e) { console.error(e); }
+                        }
+                        const updatedDivs = [newAllotment, ...parsedDivs];
+                        localStorage.setItem('kfpl_project_dividends', JSON.stringify(updatedDivs));
+                        setDividends(updatedDivs);
+
+                        const updatedProjects = projects.map(p => {
+                          if (p.id === drawerProject.id) {
+                            const currentDist = Number(p.dividendsDistributed) || 0;
+                            return { ...p, dividendsDistributed: currentDist + allotAmt };
+                          }
+                          return p;
+                        });
+                        persist(updatedProjects);
+                        
+                        setDrawerProject({
+                          ...drawerProject,
+                          dividendsDistributed: (Number(drawerProject.dividendsDistributed) || 0) + allotAmt
+                        });
+
+                        addToast(`Dividend of ${formatCurrency(allotAmt)} allotted successfully to ${selectedInv?.name}`, 'success', 'Allotment Success');
+                        
+                        if (amtInput) amtInput.value = '';
+                        if (noteInput) noteInput.value = '';
+                        if (clientSelect) clientSelect.value = '';
+                      }}
+                    >
+                      Allot Dividend
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Action Buttons */}
           <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
             <button className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" onClick={() => { setDrawerProject(null); openEditModal(drawerProject); }}>
@@ -604,111 +905,240 @@ export default function PortfolioManagement() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-        <div className="kfpl-card" style={{ padding: '20px' }}>
-          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Total Projects</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{totalProjects}</div>
-        </div>
-        <div className="kfpl-card" style={{ padding: '20px' }}>
-          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Active</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-success)' }}>{activeProjects}</div>
-        </div>
-        <div className="kfpl-card" style={{ padding: '20px' }}>
-          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Segments</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-gold-dark)' }}>{segmentNames.length}</div>
-        </div>
-        <div className="kfpl-card" style={{ padding: '20px' }}>
-          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Avg. Progress</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{avgProgress}%</div>
-        </div>
+      {/* Page Tabs */}
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', marginBottom: '24px', gap: '16px' }}>
+        <button
+          onClick={() => setActivePage('projects')}
+          style={{
+            padding: '12px 16px',
+            background: 'none',
+            border: 'none',
+            borderBottom: activePage === 'projects' ? '2px solid var(--color-gold)' : '2px solid transparent',
+            color: activePage === 'projects' ? 'var(--color-gold)' : 'var(--color-text-muted)',
+            fontWeight: 700,
+            cursor: 'pointer',
+            fontSize: '0.9rem',
+            transition: 'all 0.2s'
+          }}
+        >
+          Project Catalog
+        </button>
+        <button
+          onClick={() => setActivePage('dividends')}
+          style={{
+            padding: '12px 16px',
+            background: 'none',
+            border: 'none',
+            borderBottom: activePage === 'dividends' ? '2px solid var(--color-gold)' : '2px solid transparent',
+            color: activePage === 'dividends' ? 'var(--color-gold)' : 'var(--color-text-muted)',
+            fontWeight: 700,
+            cursor: 'pointer',
+            fontSize: '0.9rem',
+            transition: 'all 0.2s'
+          }}
+        >
+          Dividend Ledger
+        </button>
       </div>
 
-      {/* Segment Tabs */}
-      <div className="kfpl-filter-chips" style={{ marginBottom: '20px', flexWrap: 'wrap' }}>
-        {['All', ...segmentNames].map(tab => {
-          const count = tab === 'All' ? projects.length : projects.filter(p => p.segment === tab).length;
-          return (
-            <span
-              key={tab}
-              className={`kfpl-filter-chip ${activeTab === tab ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab)}
-            >
-              {tab} ({count})
-            </span>
-          );
-        })}
-      </div>
-
-      {/* Project Cards Grid */}
-      <div className="kfpl-portfolio-grid">
-        {filteredProjects.length === 0 ? (
-          <div className="kfpl-card" style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)', gridColumn: '1 / -1' }}>
-            No projects found in this segment
+      {activePage === 'projects' ? (
+        <>
+          {/* Summary Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            <div className="kfpl-card" style={{ padding: '20px' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Total Projects</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{totalProjects}</div>
+            </div>
+            <div className="kfpl-card" style={{ padding: '20px' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Active</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-success)' }}>{activeProjects}</div>
+            </div>
+            <div className="kfpl-card" style={{ padding: '20px' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Segments</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-gold-dark)' }}>{segmentNames.length}</div>
+            </div>
+            <div className="kfpl-card" style={{ padding: '20px' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Avg. Progress</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{avgProgress}%</div>
+            </div>
           </div>
-        ) : filteredProjects.map(project => {
-          const accent = SEGMENT_COLORS[project.segment] || '#10B981';
-          const initials = SEGMENT_ABBR[project.segment] || project.name.slice(0, 2).toUpperCase();
-          return (
-            <div className="kfpl-portfolio-card" key={project.id} style={{ '--portfolio-accent': accent, cursor: 'pointer' }}
-              onClick={() => setDrawerProject(project)}
-            >
-              <div className="kfpl-portfolio-card-media">
-                <span className="kfpl-portfolio-card-initials">{initials}</span>
-                <span className="kfpl-portfolio-card-status">{project.health || 'On Track'}</span>
+
+          {/* Segment Tabs */}
+          <div className="kfpl-filter-chips" style={{ marginBottom: '20px', flexWrap: 'wrap' }}>
+            {['All', ...segmentNames].map(tab => {
+              const count = tab === 'All' ? projects.length : projects.filter(p => p.segment === tab).length;
+              return (
+                <span
+                  key={tab}
+                  className={`kfpl-filter-chip ${activeTab === tab ? 'active' : ''}`}
+                  onClick={() => setActiveTab(tab)}
+                >
+                  {tab} ({count})
+                </span>
+              );
+            })}
+          </div>
+
+          {/* Project Cards Grid */}
+          <div className="kfpl-portfolio-grid">
+            {filteredProjects.length === 0 ? (
+              <div className="kfpl-card" style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)', gridColumn: '1 / -1' }}>
+                No projects found in this segment
               </div>
-
-              <div className="kfpl-portfolio-card-body">
-                <div className="kfpl-portfolio-card-topline">
-                  <span className="kfpl-portfolio-segment">{project.segment}</span>
-                  <strong>{project.value || '—'}</strong>
-                </div>
-
-                <h2>{project.name}</h2>
-                <p>{project.summary}</p>
-
-                <div className="kfpl-portfolio-metrics">
-                  <div>
-                    <span>Status</span>
-                    <strong>{project.status}</strong>
+            ) : filteredProjects.map(project => {
+              const accent = SEGMENT_COLORS[project.segment] || '#10B981';
+              const initials = SEGMENT_ABBR[project.segment] || project.name.slice(0, 2).toUpperCase();
+              return (
+                <div className="kfpl-portfolio-card" key={project.id} style={{ '--portfolio-accent': accent, cursor: 'pointer' }}
+                  onClick={() => setDrawerProject(project)}
+                >
+                  <div className="kfpl-portfolio-card-media">
+                    <span className="kfpl-portfolio-card-initials">{initials}</span>
+                    <span className="kfpl-portfolio-card-status">{project.health || 'On Track'}</span>
                   </div>
-                  <div>
-                    <span>Monthly ROI</span>
-                    <strong>{project.roi || '—'}</strong>
-                  </div>
-                  <div>
-                    <span>Risk</span>
-                    <strong>{project.risk || '—'}</strong>
-                  </div>
-                </div>
 
-                <div className="kfpl-portfolio-progress-row">
-                  <span>Milestone Progress</span>
-                  <strong>{project.milestone}%</strong>
-                </div>
-                <div className="kfpl-progress">
-                  <div className="kfpl-progress-fill" style={{ width: `${project.milestone}%` }} />
-                </div>
+                  <div className="kfpl-portfolio-card-body">
+                    <div className="kfpl-portfolio-card-topline">
+                      <span className="kfpl-portfolio-segment">{project.segment}</span>
+                      <strong>{project.value || '—'}</strong>
+                    </div>
 
-                {/* Actions */}
-                <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'flex-end', position: 'relative', zIndex: 10 }} onClick={e => e.stopPropagation()}>
-                  <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" onClick={() => openEditModal(project)}>Edit</button>
-                  <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" style={{ color: 'var(--color-danger)' }} onClick={() => setDeleteConfirm(project)}>Delete</button>
-                  <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => {
-                    setUploadTarget(project.id);
-                    setTimeout(() => fileInputRef.current?.click(), 50);
-                  }}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
-                      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                    </svg>
-                    Upload
-                  </button>
+                    <h2>{project.name}</h2>
+                    <p>{project.summary}</p>
+
+                    <div className="kfpl-portfolio-metrics">
+                      <div>
+                        <span>Status</span>
+                        <strong>{project.status}</strong>
+                      </div>
+                      <div>
+                        <span>Monthly ROI</span>
+                        <strong>{project.roi || '—'}</strong>
+                      </div>
+                      <div>
+                        <span>Risk</span>
+                        <strong>{project.risk || '—'}</strong>
+                      </div>
+                    </div>
+
+                    <div className="kfpl-portfolio-progress-row">
+                      <span>Milestone Progress</span>
+                      <strong>{project.milestone}%</strong>
+                    </div>
+                    <div className="kfpl-progress">
+                      <div className="kfpl-progress-fill" style={{ width: `${project.milestone}%` }} />
+                    </div>
+
+                    {/* Actions */}
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'flex-end', position: 'relative', zIndex: 10 }} onClick={e => e.stopPropagation()}>
+                      <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" onClick={() => openEditModal(project)}>Edit</button>
+                      <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" style={{ color: 'var(--color-danger)' }} onClick={() => setDeleteConfirm(project)}>Delete</button>
+                      <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => {
+                        setUploadTarget(project.id);
+                        setTimeout(() => fileInputRef.current?.click(), 50);
+                      }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+                          <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                        </svg>
+                        Upload
+                      </button>
+                    </div>
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <div className="animate-fade-slide-up">
+          {/* Ledger Summary Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            <div className="kfpl-card" style={{ padding: '20px' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Total Pools Configured</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-gold-dark)' }}>
+                {formatCurrency(projects.reduce((sum, p) => sum + (Number(p.totalDividendPool) || 0), 0))}
               </div>
             </div>
-          );
-        })}
-      </div>
+            <div className="kfpl-card" style={{ padding: '20px' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Dividends Distributed</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-success)' }}>
+                {formatCurrency(projects.reduce((sum, p) => sum + (Number(p.dividendsDistributed) || 0), 0))}
+              </div>
+            </div>
+            <div className="kfpl-card" style={{ padding: '20px' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Remaining Pools Balance</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>
+                {formatCurrency(
+                  projects.reduce((sum, p) => sum + (Number(p.totalDividendPool) || 0), 0) -
+                  projects.reduce((sum, p) => sum + (Number(p.dividendsDistributed) || 0), 0)
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Ledger Data Table */}
+          <div className="kfpl-card" style={{ padding: '20px' }}>
+            <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Allotment Ledger</h3>
+            </div>
+            <DataTable
+              columns={[
+                {
+                  header: 'Project / Segment',
+                  accessor: 'projectName',
+                  render: (row) => (
+                    <div>
+                      <div className="kfpl-table-cell-primary">{row.projectName}</div>
+                      <div className="kfpl-table-cell-secondary">{row.segment}</div>
+                    </div>
+                  )
+                },
+                {
+                  header: 'Client Details',
+                  accessor: 'clientName',
+                  render: (row) => (
+                    <div>
+                      <div className="kfpl-table-cell-primary">{row.clientName}</div>
+                      <div className="kfpl-table-cell-secondary">{row.clientId}</div>
+                    </div>
+                  )
+                },
+                {
+                  header: 'Allotted Amount',
+                  accessor: 'amount',
+                  render: (row) => (
+                    <strong style={{ color: 'var(--color-success)' }}>{formatCurrency(row.amount || 0)}</strong>
+                  )
+                },
+                {
+                  header: 'Date of Allotment',
+                  accessor: 'creditDate',
+                  render: (row) => (
+                    <span>
+                      {new Date(row.creditDate).toLocaleDateString('en-IN', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </span>
+                  )
+                },
+                {
+                  header: 'Remarks / Notes',
+                  accessor: 'adminNote',
+                  render: (row) => (
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8125rem' }}>{row.adminNote || '—'}</span>
+                  )
+                }
+              ]}
+              data={dividends}
+              searchPlaceholder="Search by client or project..."
+            />
+          </div>
+        </div>
+      )}
 
       {/* ═══════ Add / Edit Project Modal ═══════ */}
       <Modal
