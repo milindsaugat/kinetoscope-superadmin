@@ -19,6 +19,7 @@ export default function AddInvestor() {
   const [form, setForm] = useState({
     fullName: '', email: '', phone: '', dob: '', address: '',
     pan: '', bankName: '', accountNo: '', ifsc: '',
+    aadhaarNumber: '',
     nomineeName: '', nomineeRelation: '', nomineeContact: '', nomineeEmail: '',
     riskProfile: 'Conservative',
     citizenship: 'National',
@@ -120,7 +121,7 @@ export default function AddInvestor() {
       if (form.accountNo) formData.append('accountNumber', form.accountNo);
       if (form.ifsc) formData.append('ifscCode', form.ifsc);
       if (form.pan) formData.append('panNumber', form.pan);
-      formData.append('aadhaarNumber', ''); // Not entered in UI, default empty
+      if (form.aadhaarNumber) formData.append('aadhaarNumber', form.aadhaarNumber);
 
       if (form.nomineeName) {
         formData.append('nomineeName', form.nomineeName);
@@ -304,26 +305,59 @@ export default function AddInvestor() {
           {/* KYC & Bank */}
           <div className="kfpl-form-section">
             <div className="kfpl-form-section-title">KYC & Bank Details</div>
-            <div className="kfpl-form-row-3">
+            <div className="kfpl-form-row">
               <div className="kfpl-input-group">
-                <label className="kfpl-input-label">{form.citizenship === 'International' ? 'Tax ID / SSN Number' : 'PAN Number'}</label>
-                <input className="kfpl-input" name="pan" value={form.pan} onChange={handleChange} placeholder={form.citizenship === 'International' ? 'Tax ID or SSN' : 'ABCPK1234L'} />
+                <label className="kfpl-input-label">
+                  {form.citizenship === 'International' ? 'Tax ID / SSN Number' : 'PAN Number'} <span className="required">*</span>
+                </label>
+                <input 
+                  className="kfpl-input" 
+                  name="pan" 
+                  value={form.pan} 
+                  onChange={handleChange} 
+                  placeholder={form.citizenship === 'International' ? 'Tax ID or SSN' : 'ABCPK1234L'} 
+                  required 
+                />
               </div>
               <div className="kfpl-input-group">
-                <label className="kfpl-input-label">Bank Name</label>
-                <input className="kfpl-input" name="bankName" value={form.bankName} onChange={handleChange} placeholder="Bank name" />
-              </div>
-              <div className="kfpl-input-group">
-                <label className="kfpl-input-label">Account Number</label>
-                <input className="kfpl-input" name="accountNo" value={form.accountNo} onChange={handleChange} placeholder="Account number" />
+                <label className="kfpl-input-label">
+                  {form.citizenship === 'International' ? 'Passport / National ID Number' : 'Aadhaar Number'} <span className="required">*</span>
+                </label>
+                <input 
+                  className="kfpl-input" 
+                  name="aadhaarNumber" 
+                  value={form.aadhaarNumber} 
+                  onChange={handleChange} 
+                  placeholder={form.citizenship === 'International' ? 'Passport or ID number' : '12-digit Aadhaar number'} 
+                  required 
+                />
               </div>
             </div>
             <div className="kfpl-form-row">
               <div className="kfpl-input-group">
-                <label className="kfpl-input-label">{form.citizenship === 'International' ? 'IFSC / SWIFT Code' : 'IFSC Code'}</label>
-                <input className="kfpl-input" name="ifsc" value={form.ifsc} onChange={handleChange} placeholder={form.citizenship === 'International' ? 'SWIFT or IFSC code' : 'HDFC0001234'} />
+                <label className="kfpl-input-label">Bank Name <span className="required">*</span></label>
+                <input className="kfpl-input" name="bankName" value={form.bankName} onChange={handleChange} placeholder="Bank name" required />
               </div>
-              <div></div>
+              <div className="kfpl-input-group">
+                <label className="kfpl-input-label">Account Number <span className="required">*</span></label>
+                <input className="kfpl-input" name="accountNo" value={form.accountNo} onChange={handleChange} placeholder="Account number" required />
+              </div>
+            </div>
+            <div className="kfpl-form-row">
+              <div className="kfpl-input-group">
+                <label className="kfpl-input-label">
+                  {form.citizenship === 'International' ? 'IFSC / SWIFT Code' : 'IFSC Code'} <span className="required">*</span>
+                </label>
+                <input 
+                  className="kfpl-input" 
+                  name="ifsc" 
+                  value={form.ifsc} 
+                  onChange={handleChange} 
+                  placeholder={form.citizenship === 'International' ? 'SWIFT or IFSC code' : 'HDFC0001234'} 
+                  required 
+                />
+              </div>
+              <div style={{ flex: 1 }}></div>
             </div>
           </div>
 
