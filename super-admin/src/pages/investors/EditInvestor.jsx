@@ -1,6 +1,8 @@
 /* ============================================================
    Page: EditInvestor.jsx
-   Description: Form to edit an existing investor/client profile
+   Description: Form to edit an existing investor/client profile.
+                Fetches client data from API on mount, submits
+                changes via PATCH /api/super-admin/clients/:id.
    ============================================================ */
 
 import { useState, useEffect } from 'react';
@@ -8,7 +10,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useToast } from '../../components/ui/Toast';
 import Badge from '../../components/ui/Badge';
 import FileDropzone from '../../components/ui/FileDropzone';
-import { investors, agents } from '../../data/mockData';
+import { apiRequest } from '../../config/apiHelper';
 
 const COMMISSION_PRESETS = [
   { id: 'slab-1', name: 'Slab 1 (Basic): 1.0% One-Time / 0.50% Monthly', oneTime: 1.0, monthly: 0.50 },
@@ -22,9 +24,12 @@ export default function EditInvestor() {
   const { id } = useParams();
   const navigate = useNavigate();
   const addToast = useToast();
-  const [selectedAgentId, setSelectedAgentId] = useState('');
 
-  const investor = investors.find(inv => inv.id === Number(id));
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [clientData, setClientData] = useState(null);
+  const [selectedAgentId, setSelectedAgentId] = useState('');
+  const [dbAgents, setDbAgents] = useState([]);
 
   const [form, setForm] = useState({
     fullName: '', email: '', phone: '', dob: '', address: '',
@@ -40,39 +45,99 @@ export default function EditInvestor() {
     roiPercentage: '',
   });
 
+  // Fetch client data on mount
   useEffect(() => {
-    if (investor) {
-      setForm({
-        fullName: investor.name || '',
-        email: investor.email || '',
-        phone: investor.phone || '',
-        dob: investor.dob || '',
-        address: investor.address || '',
-        pan: investor.pan || '',
-        bankName: investor.bankName || '',
-        accountNo: investor.accountNo || '',
-        ifsc: investor.ifsc || '',
-        category: investor.category || '',
-        status: investor.status || '',
-        nomineeName: investor.nominee?.name || '',
-        nomineeRelation: investor.nominee?.relation || '',
-        nomineeContact: investor.nominee?.contact || '',
-        nomineeEmail: investor.nominee?.email || '',
-        riskProfile: investor.riskProfile || 'Conservative',
-        citizenship: investor.citizenship || 'National',
-        nomineeCitizenship: investor.nominee?.citizenship || 'National',
-        commissionSlab: investor.agentCommission?.slabSelected || 'slab-2',
-        commissionOneTime: investor.agentCommission?.oneTimePercent ?? '1.5',
-        commissionMonthly: investor.agentCommission?.monthlyPercent ?? '0.75',
-        roiPercentage: investor.roiPercentage || 10,
-      });
-      // Find current agent
-      const currentAgent = agents.find(a => a.clients.includes(investor.id));
-      setSelectedAgentId(currentAgent ? String(currentAgent.id) : '');
-    }
-  }, [investor]);
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const res = await apiRequest(`/api/super-admin/clients/${id}`);
+        const data = res.data || res;
+        setClientData(data);
 
-  if (!investor) {
+        const profile = data.profile || data;
+        const header = data.header || {};
+
+        // Format DOB for date input (YYYY-MM-DD)
+        let dobFormatted = '';
+        if (profile.dob) {
+          const d = new Date(profile.dob);
+          if (!isNaN(d.getTime())) {
+            dobFormatted = d.toISOString().split('T')[0];
+          } else {
+            dobFormatted = profile.dob;
+          }
+        }
+
+        setForm({
+          fullName: profile.fullName || profile.name || '',
+          email: profile.email || '',
+          phone: profile.phone || '',
+          dob: dobFormatted,
+          address: profile.address || '',
+          pan: profile.panNumber || profile.pan || '',
+          bankName: profile.bankName || '',
+          accountNo: profile.accountNumber || profile.accountNo || '',
+          ifsc: profile.ifscCode || profile.ifsc || '',
+          category: (header.tier || profile.tier || profile.category || 'silver').toLowerCase(),
+          status: (header.status || profile.status || 'active').toLowerCase(),
+          nomineeName: profile.nomineeName || '',
+          nomineeRelation: profile.nomineeRelation || '',
+          nomineeContact: profile.nomineePhone || '',
+          nomineeEmail: profile.nomineeEmail || '',
+          riskProfile: profile.riskProfile || 'Conservative',
+          citizenship: (profile.residencyStatus || profile.citizenship || 'National').includes('International') ? 'International' : 'National',
+          nomineeCitizenship: (profile.nomineeResidency || '').includes('International') ? 'International' : 'National',
+          commissionSlab: 'slab-2',
+          commissionOneTime: '1.5',
+          commissionMonthly: '0.75',
+          roiPercentage: profile.monthlyRoi || profile.roiPercentage || 1.2,
+        });
+
+        // Set assigned agent
+        if (profile.assignedAgent) {
+          setSelectedAgentId(typeof profile.assignedAgent === 'object' ? profile.assignedAgent._id : profile.assignedAgent);
+        }
+      } catch (err) {
+        console.error('Failed to fetch client for edit:', err);
+        addToast(err.message || 'Failed to load client data', 'error', 'Error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const fetchAgents = async () => {
+      try {
+        const res = await apiRequest('/api/super-admin/agents');
+        const agents = res.data || res.agents || [];
+        if (Array.isArray(agents)) {
+          setDbAgents(agents);
+        }
+      } catch (err) {
+        console.error('Failed to fetch agents:', err);
+      }
+    };
+
+    fetchData();
+    fetchAgents();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="kfpl-page">
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px', flexDirection: 'column', gap: '16px' }}>
+          <div style={{
+            width: '40px', height: '40px', border: '4px solid var(--color-border)',
+            borderTopColor: 'var(--color-primary)', borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite'
+          }} />
+          <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>Loading client data...</span>
+        </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  if (!clientData) {
     return (
       <div className="kfpl-page">
         <div className="kfpl-empty">
@@ -98,76 +163,70 @@ export default function EditInvestor() {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if ((form.nomineeRelation || form.nomineeContact) && !form.nomineeName) {
       alert('Nominee Name is required if Nominee Relation or Nominee Contact is provided.');
       return;
     }
-    // Update mock data in-memory so changes reflect immediately
-    const idx = investors.findIndex(inv => inv.id === Number(id));
-    if (idx !== -1) {
-      investors[idx] = {
-        ...investors[idx],
-        name: form.fullName,
+
+    setSaving(true);
+    try {
+      // Build the PATCH payload
+      const payload = {
+        fullName: form.fullName,
         email: form.email,
         phone: form.phone,
         dob: form.dob,
         address: form.address,
-        pan: form.pan,
-        bankName: form.bankName,
-        accountNo: form.accountNo,
-        ifsc: form.ifsc,
-        category: form.category,
-        status: form.status,
         riskProfile: form.riskProfile,
-        citizenship: form.citizenship,
-        roiPercentage: parseFloat(form.roiPercentage) || 10,
-        agentCommission: selectedAgentId ? {
-          oneTimePercent: parseFloat(form.commissionOneTime) || 0,
-          monthlyPercent: parseFloat(form.commissionMonthly) || 0,
-          slabSelected: form.commissionSlab,
-        } : null,
-        nominee: {
-          name: form.nomineeName,
-          relation: form.nomineeRelation,
-          contact: form.nomineeContact,
-          email: form.nomineeEmail,
-          citizenship: form.nomineeCitizenship,
-        }
+        residencyStatus: form.citizenship === 'International' ? 'International' : 'National (Domestic)',
+        monthlyRoi: parseFloat(form.roiPercentage) || 1.2,
+        status: form.status,
+        tier: form.category.toUpperCase(),
+        panNumber: form.pan,
+        bankName: form.bankName,
+        accountNumber: form.accountNo,
+        ifscCode: form.ifsc,
+        nomineeName: form.nomineeName,
+        nomineeRelation: form.nomineeRelation,
+        nomineePhone: form.nomineeContact,
+        nomineeEmail: form.nomineeEmail,
+        nomineeResidency: form.nomineeCitizenship === 'International' ? 'International' : 'National (Domestic)',
       };
-    }
 
-    // Update Agent relations: remove client from all agents
-    agents.forEach(agent => {
-      const cIdx = agent.clients.indexOf(Number(id));
-      if (cIdx !== -1) {
-        agent.clients.splice(cIdx, 1);
-        agent.totalClients = agent.clients.length;
+      // Only include assignedAgent if it's a valid MongoDB ID
+      const isValidMongoId = /^[0-9a-fA-F]{24}$/.test(selectedAgentId);
+      if (selectedAgentId && isValidMongoId) {
+        payload.assignedAgent = selectedAgentId;
       }
-    });
 
-    // Assign to selected agent if any
-    if (selectedAgentId) {
-      const agent = agents.find(a => a.id === Number(selectedAgentId));
-      if (agent) {
-        if (!agent.clients.includes(Number(id))) {
-          agent.clients.push(Number(id));
-          agent.totalClients = agent.clients.length;
-        }
-      }
+      await apiRequest(`/api/super-admin/clients/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+
+      addToast(`Client "${form.fullName}" updated successfully!`, 'success', 'Client Updated');
+      setTimeout(() => navigate(`/investors/${id}`), 500);
+    } catch (err) {
+      addToast(err.message || 'Failed to update client', 'error', 'Update Failed');
+    } finally {
+      setSaving(false);
     }
-
-    addToast(`Client "${form.fullName}" updated successfully!`, 'success', 'Client Updated');
-    setTimeout(() => navigate(`/investors/${id}`), 500);
   };
+
+  const profile = clientData?.profile || clientData || {};
+  const header = clientData?.header || {};
+  const displayName = header.clientName || profile.fullName || profile.name || '';
+  const displayCode = header.clientCode || profile.clientCode || profile.clientId || '';
+  const displayTier = (header.tier || profile.tier || profile.category || 'silver').toLowerCase();
 
   return (
     <div className="kfpl-page">
       <div className="kfpl-page-header">
         <div className="kfpl-page-header-left">
           <h2 className="kfpl-page-title">Edit Client Profile</h2>
-          <p className="kfpl-page-subtitle">Update details for <strong>{investor.name}</strong> — {investor.clientId}</p>
+          <p className="kfpl-page-subtitle">Update details for <strong>{displayName}</strong> — {displayCode}</p>
         </div>
         <div className="kfpl-page-header-actions">
           <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" onClick={() => navigate(`/investors/${id}`)}>Cancel</button>
@@ -178,9 +237,9 @@ export default function EditInvestor() {
         <div className="kfpl-form-card-header">
           <div>
             <h3 className="kfpl-form-card-title">Personal Information</h3>
-            <p className="kfpl-form-card-subtitle">Client ID: {investor.clientId}</p>
+            <p className="kfpl-form-card-subtitle">Client ID: {displayCode}</p>
           </div>
-          <Badge status={investor.category}>{investor.category} Tier</Badge>
+          <Badge status={displayTier}>{displayTier.toUpperCase()} Tier</Badge>
         </div>
 
         <div className="kfpl-form">
@@ -232,6 +291,8 @@ export default function EditInvestor() {
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                   <option value="suspended">Suspended</option>
+                  <option value="blocked">Blocked</option>
+                  <option value="hold">Hold</option>
                 </select>
               </div>
               <div className="kfpl-input-group">
@@ -260,8 +321,10 @@ export default function EditInvestor() {
                   style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}
                 >
                   <option value="">Direct Client (No Agent)</option>
-                  {agents.map(a => (
-                    <option key={a.id} value={a.id}>{a.name} ({a.agentId})</option>
+                  {dbAgents.map(a => (
+                    <option key={a._id || a.id} value={a._id || a.id}>
+                      {a.name} ({a.agentId || a.code || 'Agent'})
+                    </option>
                   ))}
                 </select>
               </div>
@@ -406,11 +469,11 @@ export default function EditInvestor() {
           {/* Actions */}
           <div className="kfpl-form-actions">
             <button type="button" className="kfpl-btn kfpl-btn--ghost" onClick={() => navigate(`/investors/${id}`)}>Cancel</button>
-            <button type="submit" className="kfpl-btn kfpl-btn--primary">
+            <button type="submit" className="kfpl-btn kfpl-btn--primary" disabled={saving}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16" style={{ marginRight: '6px' }}>
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1-2 2h11l5 5v11z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
               </svg>
-              Save Changes
+              {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </div>
