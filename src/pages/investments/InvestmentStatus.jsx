@@ -439,7 +439,7 @@ export default function InvestmentStatus() {
                   '';
       if (url) return url;
       
-      const proj = res.project || res.data?.project;
+      const proj = res.project || res.data?.project || res.data || res;
       if (proj && Array.isArray(proj.mediaFiles) && proj.mediaFiles.length > 0) {
         return proj.mediaFiles[proj.mediaFiles.length - 1];
       }
@@ -456,17 +456,17 @@ export default function InvestmentStatus() {
       let fileUrl = '';
       
       try {
-        // Try the updates attachment route first
-        uploadResult = await apiRequest(`/api/super-admin/projects/${uploadTarget}/updates/attachments`, {
+        // Try the working media route first to ensure it updates project.mediaFiles (visible to clients)
+        uploadResult = await apiRequest(`/api/super-admin/projects/${uploadTarget}/media`, {
           method: 'POST',
           body: uploadFormData
         });
         fileUrl = extractUrl(uploadResult);
       } catch (primaryErr) {
-        console.warn('Primary updates attachment upload failed, trying media route fallback:', primaryErr);
+        console.warn('Primary media route upload failed, trying updates attachment route fallback:', primaryErr);
         
-        // Fallback to the working media route
-        uploadResult = await apiRequest(`/api/super-admin/projects/${uploadTarget}/media`, {
+        // Fallback to the updates attachment route
+        uploadResult = await apiRequest(`/api/super-admin/projects/${uploadTarget}/updates/attachments`, {
           method: 'POST',
           body: uploadFormData
         });
