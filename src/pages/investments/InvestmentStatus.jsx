@@ -574,13 +574,25 @@ export default function InvestmentStatus() {
             <div
               className="kfpl-status-card animate-fade-slide-up"
               key={item.id}
-              style={{ '--accent-color': accent, '--accent-color-dark': accent }}
+              style={{
+                position: 'relative',
+                background: '#fff',
+                borderRadius: '12px',
+                padding: '24px',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
+                border: '1px solid var(--color-border-light)',
+                borderLeft: `5px solid ${accent}`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '20px',
+                transition: 'all 0.3s'
+              }}
             >
               {/* Header block with title, segment, and action buttons */}
-              <div className="kfpl-status-card-header">
+              <div className="kfpl-status-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--color-border-light)', paddingBottom: '16px', margin: 0 }}>
                 <div className="kfpl-status-card-title-group">
-                  <div className="kfpl-status-card-title-row" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <h3 className="kfpl-status-card-title">
+                  <div className="kfpl-status-card-title-row" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <h3 className="kfpl-status-card-title" style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--color-navy)', margin: 0 }}>
                       {item.isSegmentWide ? `${item.segment} Segment Update` : item.project}
                     </h3>
                     <Badge status={['Active', 'Ongoing', 'In Production'].includes(item.status) ? 'active' : 'pending'}>{item.status}</Badge>
@@ -590,12 +602,12 @@ export default function InvestmentStatus() {
                   </div>
                   
                   {/* Meta tag pills */}
-                  <div className="kfpl-status-card-meta-row">
-                    <span className="kfpl-stat-pill" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-border-light)' }}>
+                  <div className="kfpl-status-card-meta-row" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginTop: '8px' }}>
+                    <span className="kfpl-stat-pill" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: `${accent}08`, borderRadius: '6px', border: `1px solid ${accent}20` }}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12, color: accent }}>
                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                       </svg>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>{item.segment}</span>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 800, color: accent, textTransform: 'uppercase', letterSpacing: '0.02em' }}>{item.segment}</span>
                     </span>
                     <span className="kfpl-stat-pill" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-border-light)' }}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12, color: 'var(--color-text-muted)' }}>
@@ -604,23 +616,28 @@ export default function InvestmentStatus() {
                       <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Updated: {item.lastUpdate}</span>
                     </span>
                     {(item.media || []).length > 0 && (
-                      <span className="kfpl-stat-pill" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-border-light)' }}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12, color: 'var(--color-text-muted)' }}>
+                      <span className="kfpl-stat-pill" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12, color: '#10B981' }}>
                           <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                         </svg>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>{item.media.length} File(s)</span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#10B981' }}>{item.media.length} File(s)</span>
                       </span>
                     )}
                   </div>
                 </div>
 
                 {/* Actions button list */}
-                <div className="kfpl-status-card-actions" onClick={e => e.stopPropagation()}>
+                <div className="kfpl-status-card-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                   <button
                     className="kfpl-status-card-btn"
                     onClick={() => { setEditId(editId === item.id ? null : item.id); setUpdateNote(''); setIsSegmentWidePost(false); }}
+                    style={{
+                      background: editId === item.id ? 'var(--color-surface)' : 'rgba(212, 175, 55, 0.08)',
+                      color: editId === item.id ? 'var(--color-text-secondary)' : 'var(--color-gold-dark)',
+                      borderColor: editId === item.id ? 'var(--color-border)' : 'rgba(212, 175, 55, 0.25)',
+                    }}
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                     </svg>
                     {editId === item.id ? 'Cancel' : 'Post Update'}
@@ -629,16 +646,16 @@ export default function InvestmentStatus() {
                     className="kfpl-status-card-btn"
                     onClick={() => openEditModal(item)}
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
                     </svg>
-                    Edit
+                    Edit Project
                   </button>
                   <button
                     className="kfpl-status-card-btn danger"
                     onClick={() => setDeleteConfirm(item)}
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                     </svg>
                     Delete
@@ -650,52 +667,94 @@ export default function InvestmentStatus() {
                       setTimeout(() => fileInputRef.current?.click(), 50);
                     }}
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                     </svg>
-                    Upload
+                    Attach Files
                   </button>
                 </div>
               </div>
 
               {/* Card Body grid */}
-              <div className="kfpl-status-card-grid">
-                {/* Left Column: Note bubble */}
-                <div className="kfpl-status-bubble" style={{ '--accent-color': accent }}>
-                  <div className="kfpl-status-bubble-header">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12 }}>
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                    </svg>
-                    Latest Project Status
-                  </div>
-                  <p className="kfpl-status-bubble-content">
-                    "{item.note || 'No updates have been posted for this segment cycle.'}"
-                  </p>
-                </div>
-
-                {/* Right Column: Progress tracker and Attached files */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="kfpl-status-card-grid" style={{ display: 'grid', gridTemplateColumns: '0.8fr 1.2fr', gap: '28px', marginTop: '16px' }}>
+                
+                {/* Left Column: Progress tracker and stats */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', background: 'var(--color-surface)', padding: '16px', borderRadius: '8px', border: '1px solid var(--color-border-light)' }}>
                   {/* Progress Tracker */}
                   <div className="kfpl-status-progress-block" style={{ '--accent-color': accent }}>
-                    <div className="kfpl-status-progress-header">
-                      <span className="kfpl-status-progress-label">Milestone Completion</span>
-                      <span className="kfpl-status-progress-value">{item.progress}%</span>
+                    <div className="kfpl-status-progress-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span className="kfpl-status-progress-label" style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-navy)' }}>Milestone Completion</span>
+                      <span className="kfpl-status-progress-value" style={{ fontSize: '0.9rem', fontWeight: 800, color: accent }}>{item.progress}%</span>
                     </div>
-                    <div className="kfpl-status-progress-bar">
-                      <div className="kfpl-status-progress-bar-fill" style={{ width: `${item.progress}%` }} />
+                    <div className="kfpl-status-progress-bar" style={{ height: '8px', background: 'var(--color-border-light)', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div className="kfpl-status-progress-bar-fill" style={{ width: `${item.progress}%`, height: '100%', background: accent, borderRadius: '4px', boxShadow: `0 0 8px ${accent}40` }} />
                     </div>
+                  </div>
+
+                  {/* Summary items */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--color-border-light)', paddingTop: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                      <span style={{ color: 'var(--color-text-muted)', fontWeight: 500 }}>Health Indicator:</span>
+                      <strong style={{ color: '#10B981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10B981', display: 'inline-block', boxShadow: '0 0 6px #10B981' }}></span>
+                        {item.health || 'On Track'}
+                      </strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                      <span style={{ color: 'var(--color-text-muted)', fontWeight: 500 }}>Valuation:</span>
+                      <strong style={{ color: 'var(--color-navy)', fontWeight: 700 }}>{item.value || '—'}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                      <span style={{ color: 'var(--color-text-muted)', fontWeight: 500 }}>Risk Profile:</span>
+                      <strong style={{ color: item.risk === 'High' ? '#ef4444' : item.risk === 'Medium' ? '#f59e0b' : '#10B981', fontWeight: 700 }}>{item.risk || 'Medium'}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Note timeline card & attachments */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div className="kfpl-status-bubble" style={{
+                    '--accent-color': accent,
+                    background: '#fff',
+                    border: '1.5px solid var(--color-border-light)',
+                    borderRadius: '10px',
+                    padding: '16px 20px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.01)'
+                  }}>
+                    <div className="kfpl-status-bubble-header" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-text-muted)', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12, color: accent }}>
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                      </svg>
+                      Latest Project Status note
+                    </div>
+                    <p className="kfpl-status-bubble-content" style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', lineHeight: '1.6', fontStyle: 'italic', margin: 0 }}>
+                      "{item.note || 'No activity update has been posted for this segment cycle.'}"
+                    </p>
                   </div>
 
                   {/* Media gallery grid */}
                   {(item.media || []).length > 0 && (
-                    <div className="kfpl-media-section">
-                      <div className="kfpl-media-section-header">Attached Files ({item.media.length})</div>
-                      <div className="kfpl-media-grid">
+                    <div className="kfpl-media-section" style={{ marginTop: '4px' }}>
+                      <div className="kfpl-media-section-header" style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--color-navy)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Project Attachments ({item.media.length})</div>
+                      <div className="kfpl-media-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '12px' }}>
                         {item.media.map(m => (
                           <div
                             key={m.id}
                             className="kfpl-media-card"
-                            style={{ '--accent-color': accent }}
+                            style={{
+                              position: 'relative',
+                              borderRadius: '8px',
+                              border: '1px solid var(--color-border-light)',
+                              overflow: 'hidden',
+                              height: '80px',
+                              cursor: 'pointer',
+                              background: 'var(--color-surface)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'transform 0.2s'
+                            }}
                             onClick={() => setPreviewMedia(m)}
                           >
                             <button
@@ -704,46 +763,41 @@ export default function InvestmentStatus() {
                                 e.stopPropagation();
                                 handleRemoveMedia(item.id, m.id);
                               }}
+                              style={{
+                                position: 'absolute', top: '4px', right: '4px', zIndex: 10,
+                                background: 'rgba(239, 68, 68, 0.9)', color: '#fff', border: 'none',
+                                borderRadius: '50%', width: '18px', height: '18px', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                              }}
                               aria-label="Remove media"
                             >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" style={{ width: 10, height: 10 }}>
                                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                               </svg>
                             </button>
                             
-                            {m.type?.startsWith('image/') ? (
+                            {m.type?.startsWith('image/') || m.dataUrl?.match(/\.(jpeg|jpg|gif|png|webp)/i) ? (
                               <>
-                                <img src={m.dataUrl} alt={m.name} />
-                                <div className="kfpl-media-card-overlay">
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <img src={m.dataUrl} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                <div className="kfpl-media-card-overlay" style={{ position: 'absolute', inset: 0, background: 'rgba(6,29,19,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity 0.2s' }}>
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16, color: '#fff' }}>
                                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                                     <circle cx="12" cy="12" r="3"/>
                                   </svg>
                                 </div>
                               </>
-                            ) : m.type?.startsWith('video/') ? (
+                            ) : m.type?.startsWith('video/') || m.dataUrl?.match(/\.(mp4|mov|webm|avi)/i) ? (
                               <>
-                                <div className="kfpl-media-card-placeholder">
-                                  <span className="kfpl-media-card-ext">Video</span>
-                                  <span className="kfpl-media-card-name">{m.name}</span>
-                                </div>
-                                <div className="kfpl-media-card-overlay">
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <polygon points="5 3 19 12 5 21 5 3"/>
-                                  </svg>
+                                <div className="kfpl-media-card-placeholder" style={{ padding: '8px', textAlign: 'center' }}>
+                                  <span className="kfpl-media-card-ext" style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--color-navy)', background: 'rgba(37,99,235,0.1)', padding: '2px 4px', borderRadius: '4px' }}>Video</span>
+                                  <div className="kfpl-media-card-name" style={{ fontSize: '0.65rem', color: 'var(--color-text-secondary)', marginTop: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70px' }}>{m.name}</div>
                                 </div>
                               </>
                             ) : (
                               <>
-                                <div className="kfpl-media-card-placeholder">
-                                  <span className="kfpl-media-card-ext">{m.name?.split('.').pop()?.toUpperCase() || 'FILE'}</span>
-                                  <span className="kfpl-media-card-name">{m.name}</span>
-                                </div>
-                                <div className="kfpl-media-card-overlay">
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                    <polyline points="14 2 14 8 20 8"/>
-                                  </svg>
+                                <div className="kfpl-media-card-placeholder" style={{ padding: '8px', textAlign: 'center' }}>
+                                  <span className="kfpl-media-card-ext" style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--color-navy)', background: 'rgba(107,114,128,0.1)', padding: '2px 4px', borderRadius: '4px' }}>{m.name?.split('.').pop()?.toUpperCase() || 'FILE'}</span>
+                                  <div className="kfpl-media-card-name" style={{ fontSize: '0.65rem', color: 'var(--color-text-secondary)', marginTop: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70px' }}>{m.name}</div>
                                 </div>
                               </>
                             )}
@@ -757,25 +811,27 @@ export default function InvestmentStatus() {
 
               {/* Inline note edit container */}
               {editId === item.id && (
-                <div style={{ marginTop: '12px', paddingTop: '16px', borderTop: '1px solid var(--color-border-light)', animation: 'fadeIn 0.2s' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '12px', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                <div style={{ marginTop: '12px', paddingTop: '16px', borderTop: '1px solid var(--color-border-light)', animation: 'fadeIn 0.25s', background: 'var(--color-surface)', padding: '20px', borderRadius: '10px', border: '1px dashed var(--color-border)' }}>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--color-navy)', marginTop: 0, marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Post New Activity Update</h4>
+                  
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '16px', fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
                     <input
                       type="checkbox"
                       checked={isSegmentWidePost}
                       onChange={(e) => setIsSegmentWidePost(e.target.checked)}
-                      style={{ cursor: 'pointer' }}
+                      style={{ cursor: 'pointer', width: '15px', height: '15px' }}
                     />
                     <span>Apply update segment-wide (this update will represent the entire <strong>{item.segment}</strong> segment)</span>
                   </label>
-                  <div className="kfpl-input-group" style={{ marginBottom: '12px' }}>
-                    <label className="kfpl-input-label">Post New Status Note</label>
+                  <div className="kfpl-input-group" style={{ marginBottom: '14px' }}>
+                    <label className="kfpl-input-label" style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px', display: 'block' }}>Update Status Note / Remarks</label>
                     <textarea
                       className="kfpl-textarea"
                       value={updateNote}
                       onChange={(e) => setUpdateNote(e.target.value)}
-                      placeholder="Write a status update for this project..."
+                      placeholder="Write detail progress report, shoot updates or operations timeline for this segment..."
                       rows="3"
-                      style={{ fontSize: '0.875rem' }}
+                      style={{ fontSize: '0.875rem', width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--color-border)', outline: 'none' }}
                     />
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -783,12 +839,12 @@ export default function InvestmentStatus() {
                       className="kfpl-btn kfpl-btn--primary kfpl-btn--sm"
                       onClick={() => handlePostUpdate(item)}
                       disabled={!updateNote.trim()}
-                      style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
                         <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
                       </svg>
-                      Publish Update
+                      Publish Log
                     </button>
                     <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" onClick={() => setEditId(null)}>
                       Cancel
