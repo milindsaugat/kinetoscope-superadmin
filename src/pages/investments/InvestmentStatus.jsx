@@ -656,7 +656,7 @@ export default function InvestmentStatus() {
             >
               {/* ── IMAGE SECTION WITH ROUNDED EDGES ── */}
               {imageSrc ? (
-                <div style={{ margin: '14px 14px 0', borderRadius: '12px', height: '160px', overflow: 'hidden', position: 'relative' }}>
+                <div style={{ margin: '14px 14px 0', borderRadius: '12px', height: '230px', overflow: 'hidden', position: 'relative' }}>
                   <img
                     src={imageSrc}
                     alt={item.project}
@@ -668,10 +668,12 @@ export default function InvestmentStatus() {
                   }} />
                   <div style={{ position: 'absolute', bottom: '12px', left: '12px', zIndex: 2 }}>
                     <span style={{
-                      fontSize: '0.6rem', fontWeight: 800, color: '#fff',
-                      textTransform: 'uppercase', letterSpacing: '0.08em',
-                      padding: '3px 8px', borderRadius: '6px',
-                      background: accent, boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                      fontSize: '0.68rem', fontWeight: 700, color: '#fff',
+                      letterSpacing: '0.05em',
+                      padding: '4px 12px', borderRadius: '20px',
+                      background: accent, boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                      display: 'inline-block',
+                      backdropFilter: 'blur(4px)'
                     }}>{item.segment}</span>
                   </div>
                 </div>
@@ -679,7 +681,7 @@ export default function InvestmentStatus() {
                 <div style={{
                   margin: '14px 14px 0',
                   borderRadius: '12px',
-                  height: '140px',
+                  height: '190px',
                   background: `linear-gradient(135deg, ${accent}0d 0%, ${accent}03 100%)`,
                   display: 'flex',
                   alignItems: 'center',
@@ -692,10 +694,12 @@ export default function InvestmentStatus() {
                   </span>
                   <div style={{ position: 'absolute', bottom: '12px', left: '12px' }}>
                     <span style={{
-                      fontSize: '0.6rem', fontWeight: 800, color: accent,
-                      textTransform: 'uppercase', letterSpacing: '0.08em',
-                      padding: '3px 8px', borderRadius: '6px',
-                      background: `${accent}15`, border: `1px solid ${accent}25`
+                      fontSize: '0.68rem', fontWeight: 700, color: '#fff',
+                      letterSpacing: '0.05em',
+                      padding: '4px 12px', borderRadius: '20px',
+                      background: accent, boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                      display: 'inline-block',
+                      backdropFilter: 'blur(4px)'
                     }}>{item.segment}</span>
                   </div>
                 </div>
@@ -812,35 +816,38 @@ export default function InvestmentStatus() {
                 {/* Media thumbnail attachments */}
                 {(item.media || []).length > 0 && (
                   <div style={{ marginTop: '2px', paddingTop: '10px', borderTop: '1px solid #f1f5f9' }}>
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                       {item.media.slice(0, 4).map(m => (
                         <div key={m.id} style={{
-                          position: 'relative', width: '42px', height: '42px', borderRadius: '6px',
+                          position: 'relative', width: '68px', height: '68px', borderRadius: '8px',
                           overflow: 'hidden', cursor: 'pointer', background: '#f8fafc',
                           border: '1px solid #e2e8f0',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center'
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
                         }} onClick={() => setPreviewMedia(m)}>
                           <button onClick={(e) => { e.stopPropagation(); handleRemoveMedia(item.id, m.id); }}
                             style={{
-                              position: 'absolute', top: '1px', right: '1px', zIndex: 10,
-                              background: 'rgba(239,68,68,0.9)', color: '#fff', border: 'none',
-                              borderRadius: '50%', width: '12px', height: '12px', display: 'flex',
-                              alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0
+                              position: 'absolute', top: '2px', right: '2px', zIndex: 10,
+                              background: 'rgba(239,68,68,0.95)', color: '#fff', border: 'none',
+                              borderRadius: '50%', width: '16px', height: '16px', display: 'flex',
+                              alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
                             }} aria-label="Remove">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" style={{ width: 6, height: 6 }}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" style={{ width: 8, height: 8 }}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                           </button>
                           {m.type?.startsWith('image/') || m.dataUrl?.match(/\.(jpeg|jpg|gif|png|webp)/i) ? (
                             <img src={m.dataUrl} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
-                            <span style={{ fontSize: '0.45rem', fontWeight: 700, color: '#94a3b8' }}>{m.name?.split('.').pop()?.toUpperCase() || 'FILE'}</span>
+                            <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8' }}>{m.name?.split('.').pop()?.toUpperCase() || 'FILE'}</span>
                           )}
                         </div>
                       ))}
                       {item.media.length > 4 && (
                         <div style={{
-                          width: '42px', height: '42px', borderRadius: '6px', background: '#f8fafc',
+                          width: '68px', height: '68px', borderRadius: '8px', background: '#f8fafc',
                           border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '0.65rem', fontWeight: 700, color: '#64748b'
+                          fontSize: '0.75rem', fontWeight: 700, color: '#64748b',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
                         }}>+{item.media.length - 4}</div>
                       )}
                     </div>
