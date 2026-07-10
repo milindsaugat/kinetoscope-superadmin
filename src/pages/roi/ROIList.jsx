@@ -33,6 +33,13 @@ export default function ROIList() {
   const [markPaidItem, setMarkPaidItem] = useState(null);
   const [markPaidForm, setMarkPaidForm] = useState({ paymentMode: 'Bank Transfer', transactionRefId: '' });
 
+  // Live database dropdown lists
+  const [dbClients, setDbClients] = useState(investors);
+  const [dbAgents, setDbAgents] = useState(agents);
+
+  // Record Payout Confirmation Modal
+  const [showRecordPayoutConfirmModal, setShowRecordPayoutConfirmModal] = useState(false);
+
   const parseCSV = (text) => {
     const lines = text.split(/\r?\n/);
     if (lines.length <= 1) return [];
@@ -280,7 +287,28 @@ export default function ROIList() {
     }
   };
 
+  const fetchDropdownData = async () => {
+    try {
+      const clientRes = await apiRequest('/api/super-admin/clients');
+      const clientData = clientRes.data || clientRes;
+      const parsedClients = Array.isArray(clientRes) ? clientRes : (clientData.clients || clientData || []);
+      if (Array.isArray(parsedClients) && parsedClients.length > 0) {
+        setDbClients(parsedClients);
+      }
+
+      const agentRes = await apiRequest('/api/super-admin/agents');
+      const agentData = agentRes.data || agentRes;
+      const parsedAgents = Array.isArray(agentRes) ? agentRes : (agentData.agents || agentData || []);
+      if (Array.isArray(parsedAgents) && parsedAgents.length > 0) {
+        setDbAgents(parsedAgents);
+      }
+    } catch (err) {
+      console.error("Failed to load drop-down clients/agents:", err);
+    }
+  };
+
   useEffect(() => {
+    fetchDropdownData();
     // Also load fallback from local storage as initial state
     const localROI = localStorage.getItem('kfpl_client_roi');
     const localComm = localStorage.getItem('kfpl_agent_commissions');
@@ -335,7 +363,7 @@ export default function ROIList() {
   const handleClientChange = (id) => {
     setSelectedClientId(id);
     setIsAmountEditable(false);
-    const client = investors.find(c => String(c.id) === String(id));
+    const client = dbClients.find(c => String(c.id || c._id) === String(id));
     if (client) {
       const monthlyReturn = Math.round((client.totalInvestment * (client.roiPercentage || 1.2)) / 100);
       setAmountPaid(monthlyReturn);
@@ -380,34 +408,42 @@ export default function ROIList() {
     }
   };
 
-  const handleRecordPayout = async () => {
+  const handleRecordPayoutClick = () => {
+    if (recipientType === 'client' && !selectedClientId) {
+      addToast('Please select a client.', 'error', 'Validation Error');
+      return;
+    }
+    if (recipientType === 'agent' && !selectedAgentId) {
+      addToast('Please select an agent.', 'error', 'Validation Error');
+      return;
+    }
     const amt = parseFloat(amountPaid);
     if (isNaN(amt) || amt <= 0) {
-      alert('Please enter a valid payout amount.');
+      addToast('Please enter a valid positive payout amount.', 'error', 'Validation Error');
       return;
     }
     if (!paymentMode) {
-      alert('Please select a payment mode.');
+      addToast('Please select a payment mode.', 'error', 'Validation Error');
       return;
     }
     if (!transactionRef.trim()) {
-      alert('Please enter a transaction reference.');
+      addToast('Please enter a transaction reference ID.', 'error', 'Validation Error');
       return;
     }
 
-    alert('WARNING: You are about to record a payout transaction. Please verify that the Recipient, Payout Amount, and Transaction Reference ID are correct. Recorded payouts cannot be undone.');
-    const proceedSubmit = confirm('Are you sure you want to proceed and record this payout?');
-    if (!proceedSubmit) {
-      return;
-    }
+    // Open the confirmation custom modal instead of native confirm
+    setShowRecordPayoutConfirmModal(true);
+  };
 
+  const confirmRecordPayout = async () => {
+    const amt = parseFloat(amountPaid);
     const payload = {
       recipientType: recipientType === 'client' ? 'Client Return (ROI)' : 'Agent Commission',
       recipientId: recipientType === 'client' 
-        ? investors.find(c => String(c.id) === String(selectedClientId))?.clientId || selectedClientId
-        : agents.find(a => String(a.id) === String(selectedAgentId) || a.agentId === selectedAgentId)?.agentId || selectedAgentId,
+        ? dbClients.find(c => String(c.id || c._id) === String(selectedClientId))?.clientId || selectedClientId
+        : dbAgents.find(a => String(a.id || a._id) === String(selectedAgentId) || a.agentId === selectedAgentId)?.agentId || selectedAgentId,
       commissionType: recipientType === 'agent' ? commissionType : undefined,
-      clientId: recipientType === 'agent' ? investors.find(c => String(c.id) === String(relatedClientId))?.clientId : undefined,
+      clientId: recipientType === 'agent' ? dbClients.find(c => String(c.id || c._id) === String(relatedClientId))?.clientId : undefined,
       amount: amt,
       payoutDate: payoutDate,
       paymentMode,
@@ -420,6 +456,7 @@ export default function ROIList() {
         body: payload
       });
       addToast('Payout recorded successfully!', 'success', 'Payout Recorded');
+      setShowRecordPayoutConfirmModal(false);
       setShowPayoutModal(false);
       setSelectedClientId('');
       setSelectedAgentId('');
@@ -619,7 +656,7 @@ export default function ROIList() {
         footer={
           <>
             <button className="kfpl-btn kfpl-btn--ghost" onClick={() => setShowPayoutModal(false)}>Cancel</button>
-            <button className="kfpl-btn kfpl-btn--primary" onClick={handleRecordPayout}>Submit Payout</button>
+            <button className="kfpl-btn kfpl-btn--primary" onClick={handleRecordPayoutClick}>Submit Payout</button>
           </>
         }
       >
@@ -649,15 +686,15 @@ export default function ROIList() {
                   onChange={(e) => handleClientChange(e.target.value)}
                 >
                   <option value="">Choose client</option>
-                  {investors.filter(i => i.status === 'active').map(inv => (
-                    <option key={inv.id} value={inv.id}>{inv.name} ({inv.clientId})</option>
+                  {dbClients.filter(i => i.status === 'active').map(inv => (
+                    <option key={inv.id || inv._id} value={inv.id || inv._id}>{inv.name} ({inv.clientId})</option>
                   ))}
                 </select>
               </div>
 
               {selectedClientId && (
                 (() => {
-                  const client = investors.find(c => String(c.id) === String(selectedClientId));
+                  const client = dbClients.find(c => String(c.id || c._id) === String(selectedClientId));
                   return client ? (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: 'var(--color-surface)', padding: '12px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
                       <div>
@@ -686,8 +723,8 @@ export default function ROIList() {
                   onChange={(e) => handleAgentChange(e.target.value)}
                 >
                   <option value="">Choose agent</option>
-                  {agents.filter(a => a.status === 'active').map(agt => (
-                    <option key={agt.id} value={agt.id}>{agt.name} ({agt.agentId})</option>
+                  {dbAgents.filter(a => a.status === 'active').map(agt => (
+                    <option key={agt.id || agt._id} value={agt.id || agt._id}>{agt.name} ({agt.agentId})</option>
                   ))}
                 </select>
               </div>
@@ -714,8 +751,8 @@ export default function ROIList() {
                       onChange={(e) => setRelatedClientId(e.target.value)}
                     >
                       <option value="">Choose client</option>
-                      {investors.map(inv => (
-                        <option key={inv.id} value={inv.id}>{inv.name}</option>
+                      {dbClients.map(inv => (
+                        <option key={inv.id || inv._id} value={inv.id || inv._id}>{inv.name}</option>
                       ))}
                     </select>
                   </div>
@@ -1063,6 +1100,107 @@ export default function ROIList() {
               style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-surface)', fontSize: '0.875rem' }}
               required
             />
+          </div>
+        </div>
+      </Modal>
+
+      {/* Confirm Record Payout Modal */}
+      <Modal
+        isOpen={showRecordPayoutConfirmModal}
+        onClose={() => setShowRecordPayoutConfirmModal(false)}
+        title="Confirm Payout Transaction"
+        footer={
+          <>
+            <button 
+              className="kfpl-btn kfpl-btn--ghost" 
+              onClick={() => setShowRecordPayoutConfirmModal(false)}
+            >
+              Cancel
+            </button>
+            <button 
+              className="kfpl-btn kfpl-btn--primary" 
+              onClick={confirmRecordPayout}
+            >
+              Confirm & Record Payout
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          
+          {/* Warning Banner */}
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'start', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px 16px', borderRadius: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', flexShrink: 0 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </div>
+            <div>
+              <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#EF4444' }}>Transaction Warning</h4>
+              <p style={{ margin: '2px 0 0', fontSize: '0.8125rem', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
+                You are about to record a manual payout. Please verify the transaction details below. **Recorded payouts cannot be undone.**
+              </p>
+            </div>
+          </div>
+
+          {/* Details Summary Card */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'var(--color-surface)', padding: '16px', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recipient Type</span>
+                <strong style={{ fontSize: '0.875rem', color: 'var(--color-text)' }}>
+                  {recipientType === 'client' ? 'Client (ROI Payout)' : 'Agent (Commission)'}
+                </strong>
+              </div>
+              
+              <div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Name & ID</span>
+                <strong style={{ fontSize: '0.875rem', color: 'var(--color-text)' }}>
+                  {recipientType === 'client' 
+                    ? (() => {
+                        const client = dbClients.find(c => String(c.id || c._id) === String(selectedClientId));
+                        return client ? `${client.name} (${client.clientId})` : selectedClientId;
+                      })()
+                    : (() => {
+                        const agent = dbAgents.find(a => String(a.id || a._id) === String(selectedAgentId));
+                        return agent ? `${agent.name} (${agent.agentId})` : selectedAgentId;
+                      })()
+                  }
+                </strong>
+              </div>
+            </div>
+
+            <hr style={{ border: 0, borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Payout Amount</span>
+                <strong style={{ fontSize: '1rem', color: '#0F766E' }}>{formatCurrency(parseFloat(amountPaid || 0))}</strong>
+              </div>
+
+              <div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Payout Date</span>
+                <strong style={{ fontSize: '0.875rem', color: 'var(--color-text)' }}>{payoutDate}</strong>
+              </div>
+            </div>
+
+            <hr style={{ border: 0, borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Payment Mode</span>
+                <strong style={{ fontSize: '0.875rem', color: 'var(--color-text)' }}>{paymentMode}</strong>
+              </div>
+
+              <div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Reference ID</span>
+                <strong style={{ fontSize: '0.875rem', color: 'var(--color-text)' }}>{transactionRef}</strong>
+              </div>
+            </div>
+
           </div>
         </div>
       </Modal>
