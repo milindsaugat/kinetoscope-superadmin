@@ -9,6 +9,7 @@ import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import { investors, agents, formatCurrency } from '../../data/mockData';
 import { useToast } from '../../components/ui/Toast';
+import { apiRequest } from '../../config/apiHelper';
 
 export default function ROIList() {
   const navigate = useNavigate();
@@ -24,7 +25,13 @@ export default function ROIList() {
 
   // Modal & Upload State
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadFile, setUploadFile] = useState(null);
   const [uploadFeedback, setUploadFeedback] = useState({ validCount: 0, invalidCount: 0, previewRecords: [] });
+
+  // Custom Mark Paid Modal state
+  const [showMarkPaidModal, setShowMarkPaidModal] = useState(false);
+  const [markPaidItem, setMarkPaidItem] = useState(null);
+  const [markPaidForm, setMarkPaidForm] = useState({ paymentMode: 'Bank Transfer', transactionRefId: '' });
 
   const parseCSV = (text) => {
     const lines = text.split(/\r?\n/);
@@ -66,6 +73,7 @@ export default function ROIList() {
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    setUploadFile(file);
     
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -145,61 +153,30 @@ export default function ROIList() {
     reader.readAsText(file);
   };
 
-  const handleConfirmUpload = () => {
-    const validRecords = uploadFeedback.previewRecords.filter(r => r.isValid);
-    if (validRecords.length === 0) {
-      addToast('No valid records to upload.', 'error', 'Upload Failed');
+  const handleConfirmUpload = async () => {
+    if (!uploadFile) {
+      addToast('No file selected.', 'error', 'Upload Failed');
       return;
     }
 
-    const newClientROI = [];
-    const newAgentComm = [];
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      
+      await apiRequest('/api/super-admin/roi/payouts/bulk', {
+        method: 'POST',
+        body: formData
+      });
 
-    validRecords.forEach(rec => {
-      if (rec.type === 'client') {
-        newClientROI.push({
-          id: rec.id,
-          investorId: rec.idInternal,
-          investorName: rec.name,
-          clientId: rec.recipientId,
-          roiPercentage: investors.find(i => i.id === rec.idInternal)?.roiPercentage || 1.2,
-          month: rec.month,
-          amount: rec.amount,
-          status: rec.status,
-          paidAt: rec.paidAt,
-          paymentMode: rec.paymentMode,
-          transactionRef: rec.transactionRef
-        });
-      } else {
-        newAgentComm.push({
-          id: rec.id,
-          agentName: rec.name,
-          agentId: rec.recipientId,
-          idInternal: rec.idInternal,
-          type: 'monthly',
-          month: rec.month,
-          amount: rec.amount,
-          status: rec.status,
-          paidAt: rec.paidAt,
-          paymentMode: rec.paymentMode,
-          transactionRef: rec.transactionRef,
-          remarks: 'Bulk Uploaded'
-        });
-      }
-    });
-
-    const updatedClientROI = [...newClientROI, ...clientROI];
-    const updatedAgentComm = [...newAgentComm, ...agentCommissions];
-
-    setClientROI(updatedClientROI);
-    setAgentCommissions(updatedAgentComm);
-
-    localStorage.setItem('kfpl_client_roi', JSON.stringify(updatedClientROI));
-    localStorage.setItem('kfpl_agent_commissions', JSON.stringify(updatedAgentComm));
-
-    addToast(`Successfully uploaded ${validRecords.length} records!`, 'success', 'Upload Successful');
-    setShowUploadModal(false);
-    setUploadFeedback({ validCount: 0, invalidCount: 0, previewRecords: [] });
+      addToast(`Successfully processed and uploaded bulk payouts CSV!`, 'success', 'Upload Successful');
+      setShowUploadModal(false);
+      setUploadFeedback({ validCount: 0, invalidCount: 0, previewRecords: [] });
+      setUploadFile(null);
+      fetchPayouts();
+    } catch (err) {
+      console.error('Failed to upload bulk payouts:', err);
+      addToast(err.message || 'Bulk upload failed.', 'error', 'Upload Failed');
+    }
   };
 
   const handleExportCSV = () => {
@@ -249,15 +226,67 @@ export default function ROIList() {
   const [transactionRef, setTransactionRef] = useState('');
   const [payoutDate, setPayoutDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // Load from local storage or defaults on mount
+  const fetchPayouts = async () => {
+    try {
+      const statusParam = filter === 'all' ? 'All' : filter;
+      const recipientParam = recipientTypeFilter === 'all' ? 'All' : (recipientTypeFilter === 'client' ? 'Client Return (ROI)' : 'Agent Commission');
+      const searchParam = encodeURIComponent(searchQuery);
+
+      const res = await apiRequest(`/api/super-admin/roi/payouts?status=${statusParam}&recipientType=${recipientParam}&search=${searchParam}`);
+      const data = res.data || res;
+      
+      let unified = [];
+      if (Array.isArray(data)) {
+        unified = data;
+      } else if (data.payouts && Array.isArray(data.payouts)) {
+        unified = data.payouts;
+      } else if (data.list && Array.isArray(data.list)) {
+        unified = data.list;
+      }
+
+      const clientsList = unified.filter(r => r.recipientType === 'Client Return (ROI)' || r.recordType?.toLowerCase() === 'client' || r.type === 'client');
+      const agentsList = unified.filter(r => r.recipientType === 'Agent Commission' || r.recordType?.toLowerCase() === 'agent' || r.type === 'agent');
+
+      setClientROI(clientsList.map(r => ({
+        id: r.id || r._id,
+        investorName: r.investorName || r.name || '—',
+        clientId: r.clientId || r.subText || r.recipientId || '—',
+        investorId: r.investorId || r.idInternal || '',
+        roiPercentage: r.roiPercentage || 12,
+        month: r.month || r.period || '—',
+        amount: Number(r.amount || 0),
+        status: (r.status || 'pending').toLowerCase(),
+        paidAt: r.paidAt || r.date || null,
+        paymentMode: r.paymentMode || null,
+        transactionRef: r.transactionRef || r.transactionRefId || null
+      })));
+
+      setAgentCommissions(agentsList.map(r => ({
+        id: r.id || r._id,
+        agentName: r.agentName || r.name || '—',
+        agentId: r.agentId || r.subText || r.recipientId || '—',
+        idInternal: r.idInternal || '',
+        type: r.commissionType || r.type || 'monthly',
+        month: r.month || r.period || '—',
+        amount: Number(r.amount || 0),
+        status: (r.status || 'pending').toLowerCase(),
+        paidAt: r.paidAt || r.date || null,
+        paymentMode: r.paymentMode || null,
+        transactionRef: r.transactionRef || r.transactionRefId || null,
+        remarks: r.remarks || ''
+      })));
+    } catch (err) {
+      console.error('Failed to fetch payouts:', err);
+    }
+  };
+
   useEffect(() => {
+    // Also load fallback from local storage as initial state
     const localROI = localStorage.getItem('kfpl_client_roi');
     const localComm = localStorage.getItem('kfpl_agent_commissions');
-
     if (localROI) {
       setClientROI(JSON.parse(localROI));
     } else {
-      // Flatten defaults from mockData investors
       const initialROI = investors.flatMap(inv =>
         inv.roiHistory.map(roi => ({
           ...roi,
@@ -270,13 +299,10 @@ export default function ROIList() {
         }))
       );
       setClientROI(initialROI);
-      localStorage.setItem('kfpl_client_roi', JSON.stringify(initialROI));
     }
-
     if (localComm) {
       setAgentCommissions(JSON.parse(localComm));
     } else {
-      // Flatten defaults from mockData agents
       const initialComm = agents.flatMap(agt =>
         agt.commissionHistory.map(comm => ({
           ...comm,
@@ -288,9 +314,12 @@ export default function ROIList() {
         }))
       );
       setAgentCommissions(initialComm);
-      localStorage.setItem('kfpl_agent_commissions', JSON.stringify(initialComm));
     }
   }, []);
+
+  useEffect(() => {
+    fetchPayouts();
+  }, [filter, recipientTypeFilter, searchQuery]);
 
   const handleRecipientTypeChange = (type) => {
     setRecipientType(type);
@@ -308,7 +337,6 @@ export default function ROIList() {
     setIsAmountEditable(false);
     const client = investors.find(c => String(c.id) === String(id));
     if (client) {
-      // Monthly ROI = (totalInvestment * roiPercentage) / 100
       const monthlyReturn = Math.round((client.totalInvestment * (client.roiPercentage || 1.2)) / 100);
       setAmountPaid(monthlyReturn);
     } else {
@@ -321,32 +349,38 @@ export default function ROIList() {
     setAmountPaid('');
   };
 
-  const handleMarkPaid = (roiId, type = 'client') => {
-    if (type === 'client') {
-      const updated = clientROI.map(r => {
-        if (r.id === roiId) {
-          addToast(`ROI payout for ${r.investorName} marked as paid`, 'success', 'ROI Paid');
-          return { ...r, status: 'paid', paidAt: new Date().toISOString().split('T')[0] };
+  const handleMarkPaidClick = (roiId, type = 'client') => {
+    setMarkPaidItem({ id: roiId, type });
+    setMarkPaidForm({ paymentMode: 'Bank Transfer', transactionRefId: '' });
+    setShowMarkPaidModal(true);
+  };
+
+  const confirmMarkPaid = async () => {
+    if (!markPaidItem) return;
+    if (!markPaidForm.transactionRefId.trim()) {
+      alert("Transaction Reference ID is required!");
+      return;
+    }
+
+    try {
+      await apiRequest(`/api/super-admin/roi/payouts/${markPaidItem.id}/pay`, {
+        method: 'PATCH',
+        body: {
+          paymentMode: markPaidForm.paymentMode,
+          transactionRefId: markPaidForm.transactionRefId.trim()
         }
-        return r;
       });
-      setClientROI(updated);
-      localStorage.setItem('kfpl_client_roi', JSON.stringify(updated));
-    } else {
-      const updated = agentCommissions.map(c => {
-        if (c.id === roiId) {
-          addToast(`Commission payout for ${c.agentName} marked as paid`, 'success', 'Commission Paid');
-          return { ...c, status: 'paid', paidAt: new Date().toISOString().split('T')[0] };
-        }
-        return c;
-      });
-      setAgentCommissions(updated);
-      localStorage.setItem('kfpl_agent_commissions', JSON.stringify(updated));
+      addToast(`${markPaidItem.type === 'client' ? 'ROI' : 'Commission'} payout marked as paid`, 'success', 'Paid Successfully');
+      setShowMarkPaidModal(false);
+      setMarkPaidItem(null);
+      fetchPayouts();
+    } catch (err) {
+      console.error('Failed to transition status:', err);
+      addToast(err.message || 'Failed to transition to paid', 'error', 'Error');
     }
   };
 
-  const handleRecordPayout = () => {
-    // Validation
+  const handleRecordPayout = async () => {
     const amt = parseFloat(amountPaid);
     if (isNaN(amt) || amt <= 0) {
       alert('Please enter a valid payout amount.');
@@ -361,80 +395,42 @@ export default function ROIList() {
       return;
     }
 
-    // Uniqueness check for Transaction Reference
-    const isClientRefUsed = clientROI.some(r => r.transactionRef?.toUpperCase() === transactionRef.trim().toUpperCase());
-    const isAgentRefUsed = agentCommissions.some(c => c.transactionRef?.toUpperCase() === transactionRef.trim().toUpperCase());
-
-    if (isClientRefUsed || isAgentRefUsed) {
-      alert('Transaction reference must be unique. This reference has already been used.');
-      return;
-    }
-
-    // Two-step verification sequence (Warning then Confirmation)
     alert('WARNING: You are about to record a payout transaction. Please verify that the Recipient, Payout Amount, and Transaction Reference ID are correct. Recorded payouts cannot be undone.');
     const proceedSubmit = confirm('Are you sure you want to proceed and record this payout?');
     if (!proceedSubmit) {
       return;
     }
 
-    if (recipientType === 'client') {
-      if (!selectedClientId) {
-        alert('Please select a client.');
-        return;
-      }
-      const client = investors.find(c => String(c.id) === String(selectedClientId));
-      const newRecord = {
-        id: Date.now(),
-        investorId: client.id,
-        investorName: client.name,
-        clientId: client.clientId,
-        roiPercentage: client.roiPercentage,
-        month: new Date(payoutDate).toLocaleString('default', { month: 'short', year: 'numeric' }),
-        amount: amt,
-        status: 'paid',
-        paidAt: payoutDate,
-        paymentMode,
-        transactionRef: transactionRef.trim()
-      };
-      const updated = [newRecord, ...clientROI];
-      setClientROI(updated);
-      localStorage.setItem('kfpl_client_roi', JSON.stringify(updated));
-      addToast('Client ROI payout recorded successfully!', 'success', 'Payout Recorded');
-    } else {
-      if (!selectedAgentId) {
-        alert('Please select an agent.');
-        return;
-      }
-      const agent = agents.find(a => String(a.id) === String(selectedAgentId) || a.agentId === selectedAgentId);
-      const client = investors.find(c => String(c.id) === String(relatedClientId));
-      
-      const newRecord = {
-        id: Date.now(),
-        agentName: agent.name,
-        agentId: agent.agentId,
-        idInternal: agent.id,
-        type: commissionType.toLowerCase(),
-        month: new Date(payoutDate).toLocaleString('default', { month: 'short', year: 'numeric' }),
-        amount: amt,
-        status: 'paid',
-        paidAt: payoutDate,
-        paymentMode,
-        transactionRef: transactionRef.trim(),
-        remarks: client ? `Related to client: ${client.name} (${client.clientId})` : ''
-      };
-      const updated = [newRecord, ...agentCommissions];
-      setAgentCommissions(updated);
-      localStorage.setItem('kfpl_agent_commissions', JSON.stringify(updated));
-      addToast('Agent commission payout recorded successfully!', 'success', 'Payout Recorded');
-    }
+    const payload = {
+      recipientType: recipientType === 'client' ? 'Client Return (ROI)' : 'Agent Commission',
+      recipientId: recipientType === 'client' 
+        ? investors.find(c => String(c.id) === String(selectedClientId))?.clientId || selectedClientId
+        : agents.find(a => String(a.id) === String(selectedAgentId) || a.agentId === selectedAgentId)?.agentId || selectedAgentId,
+      commissionType: recipientType === 'agent' ? commissionType : undefined,
+      clientId: recipientType === 'agent' ? investors.find(c => String(c.id) === String(relatedClientId))?.clientId : undefined,
+      amount: amt,
+      payoutDate: payoutDate,
+      paymentMode,
+      transactionRefId: transactionRef.trim()
+    };
 
-    setShowPayoutModal(false);
-    // Reset form
-    setSelectedClientId('');
-    setSelectedAgentId('');
-    setRelatedClientId('');
-    setAmountPaid('');
-    setTransactionRef('');
+    try {
+      await apiRequest('/api/super-admin/roi/payouts', {
+        method: 'POST',
+        body: payload
+      });
+      addToast('Payout recorded successfully!', 'success', 'Payout Recorded');
+      setShowPayoutModal(false);
+      setSelectedClientId('');
+      setSelectedAgentId('');
+      setRelatedClientId('');
+      setAmountPaid('');
+      setTransactionRef('');
+      fetchPayouts();
+    } catch (err) {
+      console.error(err);
+      addToast(err.message || 'Failed to record payout', 'error', 'Error');
+    }
   };
 
   // Combine lists for unified viewing
@@ -602,7 +598,7 @@ export default function ROIList() {
                     {rec.status === 'pending' && (
                       <button
                         className="kfpl-btn kfpl-btn--success kfpl-btn--sm"
-                        onClick={() => handleMarkPaid(rec.id, rec.recordType.toLowerCase())}
+                        onClick={() => handleMarkPaidClick(rec.id, rec.recordType.toLowerCase())}
                       >
                         Mark Paid
                       </button>
@@ -992,6 +988,82 @@ export default function ROIList() {
             Are you absolutely sure you want to unlock the Amount field for manual entry? 
             Please double-check the final numbers before submitting.
           </p>
+        </div>
+      </Modal>
+
+      {/* Mark Payout as Paid Modal */}
+      <Modal
+        isOpen={showMarkPaidModal}
+        onClose={() => {
+          setShowMarkPaidModal(false);
+          setMarkPaidItem(null);
+        }}
+        title="Confirm Payment Details"
+        footer={
+          <>
+            <button 
+              className="kfpl-btn kfpl-btn--ghost" 
+              onClick={() => {
+                setShowMarkPaidModal(false);
+                setMarkPaidItem(null);
+              }}
+            >
+              Cancel
+            </button>
+            <button 
+              className="kfpl-btn kfpl-btn--success" 
+              onClick={confirmMarkPaid}
+              disabled={!markPaidForm.transactionRefId.trim()}
+            >
+              Confirm & Save Payment
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', background: 'rgba(15, 118, 110, 0.05)', border: '1px solid rgba(15, 118, 110, 0.2)', padding: '12px 16px', borderRadius: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '38px', height: '38px', borderRadius: '50%', backgroundColor: 'rgba(15, 118, 110, 0.1)', flexShrink: 0 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#0F766E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <line x1="2" y1="10" x2="22" y2="10" />
+              </svg>
+            </div>
+            <div>
+              <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#0F766E' }}>Mark Payout as Paid</h4>
+              <p style={{ margin: '2px 0 0', fontSize: '0.8125rem', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
+                Please provide the payment mode and unique transaction reference ID to complete the transition.
+              </p>
+            </div>
+          </div>
+
+          <div className="kfpl-form-group">
+            <label className="kfpl-form-label" style={{ fontWeight: 600, marginBottom: '6px', display: 'block', fontSize: '0.8125rem' }}>Payment Mode</label>
+            <select
+              className="kfpl-form-select"
+              value={markPaidForm.paymentMode}
+              onChange={(e) => setMarkPaidForm(prev => ({ ...prev, paymentMode: e.target.value }))}
+              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-surface)', fontSize: '0.875rem' }}
+            >
+              <option value="Bank Transfer">Bank Transfer</option>
+              <option value="UPI">UPI</option>
+              <option value="Cheque">Cheque</option>
+              <option value="NEFT">NEFT</option>
+              <option value="RTGS">RTGS</option>
+            </select>
+          </div>
+
+          <div className="kfpl-form-group">
+            <label className="kfpl-form-label" style={{ fontWeight: 600, marginBottom: '6px', display: 'block', fontSize: '0.8125rem' }}>Transaction Reference ID <span style={{ color: 'red' }}>*</span></label>
+            <input
+              type="text"
+              className="kfpl-form-input"
+              placeholder="e.g. TXN-1029384756"
+              value={markPaidForm.transactionRefId}
+              onChange={(e) => setMarkPaidForm(prev => ({ ...prev, transactionRefId: e.target.value }))}
+              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-surface)', fontSize: '0.875rem' }}
+              required
+            />
+          </div>
         </div>
       </Modal>
     </div>

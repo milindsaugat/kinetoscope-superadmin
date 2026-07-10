@@ -3,13 +3,48 @@
    Description: History log of past approvals/rejections
    ============================================================ */
 
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DataTable from '../../components/ui/DataTable';
 import Badge from '../../components/ui/Badge';
 import { approvalHistory, formatCurrency } from '../../data/mockData';
+import { apiRequest } from '../../config/apiHelper';
 
 export default function ApprovalHistory() {
   const navigate = useNavigate();
+  const [historyData, setHistoryData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchHistory = async () => {
+    try {
+      setLoading(true);
+      const res = await apiRequest(`/api/super-admin/transactions/history?search=`);
+      const data = res.data || res;
+      const list = Array.isArray(data) ? data : (data.history || data.logs || []);
+      
+      const mapped = list.map((item, idx) => ({
+        id: item.id || item._id || idx,
+        type: item.type || 'deposit',
+        investorName: item.investorName || item.investor?.name || '—',
+        clientId: item.clientId || item.investor?.clientId || '—',
+        amount: Number(item.amount || 0),
+        date: item.date || item.createdAt || '—',
+        status: (item.status || 'approved').toLowerCase(),
+        adminNote: item.adminNote || item.remarks || item.rejectionReason || '',
+        actionAt: item.actionAt || item.updatedAt || '—'
+      }));
+      setHistoryData(mapped);
+    } catch (err) {
+      console.error('Failed to load approval history:', err);
+      setHistoryData(approvalHistory);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
 
   const columns = [
     {
@@ -58,11 +93,17 @@ export default function ApprovalHistory() {
         </div>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={approvalHistory}
-        searchPlaceholder="Search by investor name..."
-      />
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-muted)' }}>
+          Loading approval history...
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={historyData}
+          searchPlaceholder="Search by investor name..."
+        />
+      )}
     </div>
   );
 }

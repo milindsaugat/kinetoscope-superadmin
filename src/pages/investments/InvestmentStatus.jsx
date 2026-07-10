@@ -75,6 +75,7 @@ export default function InvestmentStatus() {
   const [historyLogs, setHistoryLogs] = useState([]);
   const [allHistoryLogs, setAllHistoryLogs] = useState([]);
   const [expandedCards, setExpandedCards] = useState({});
+  const [expandedMediaCards, setExpandedMediaCards] = useState({});
   const [editId, setEditId] = useState(null);
   const [updateNote, setUpdateNote] = useState('');
   const [isSegmentWidePost, setIsSegmentWidePost] = useState(false);
@@ -739,8 +740,18 @@ export default function InvestmentStatus() {
                 </div>
 
                 {/* Updates Accordion Section */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {/* ── HIGHLIGHTED TIMELINE LOGS & UPDATES CONTAINER ── */}
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  padding: '14px',
+                  borderRadius: '12px',
+                  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.01)'
+                }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>
                     Timeline Logs & Updates
                   </span>
                   
@@ -813,46 +824,122 @@ export default function InvestmentStatus() {
                   )}
                 </div>
 
-                {/* Media thumbnail attachments */}
-                {(item.media || []).length > 0 && (
-                  <div style={{ marginTop: '2px', paddingTop: '10px', borderTop: '1px solid #f1f5f9' }}>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      {item.media.slice(0, 4).map(m => (
-                        <div key={m.id} style={{
-                          position: 'relative', width: '100px', height: '100px', borderRadius: '10px',
-                          overflow: 'hidden', cursor: 'pointer', background: '#f8fafc',
-                          border: '1px solid #e2e8f0',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
-                        }} onClick={() => setPreviewMedia(m)}>
-                          <button onClick={(e) => { e.stopPropagation(); handleRemoveMedia(item.id, m.id); }}
+                {/* ── HIGHLIGHTED FILES & ATTACHMENTS GRID & ACCORDION ── */}
+                {(item.media || []).length > 0 && (() => {
+                  const mediaList = item.media || [];
+                  const firstEight = mediaList.slice(0, 8);
+                  const remainingMedia = mediaList.slice(8);
+                  const isMediaExpanded = !!expandedMediaCards[item.id];
+
+                  return (
+                    <div style={{
+                      marginTop: '12px',
+                      padding: '14px',
+                      borderRadius: '12px',
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px',
+                      boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.01)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                          Files & Attachments
+                        </span>
+                        <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 700 }}>
+                          {mediaList.length} File(s)
+                        </span>
+                      </div>
+
+                      {/* Main 4x2 Grid (up to 8 items) */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                        {firstEight.map(m => (
+                          <div key={m.id} style={{
+                            position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '10px',
+                            overflow: 'hidden', cursor: 'pointer', background: '#ffffff',
+                            border: '1px solid #e2e8f0',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                          }} onClick={() => setPreviewMedia(m)}>
+                            <button onClick={(e) => { e.stopPropagation(); handleRemoveMedia(item.id, m.id); }}
+                              style={{
+                                position: 'absolute', top: '4px', right: '4px', zIndex: 10,
+                                background: 'rgba(239,68,68,0.95)', color: '#fff', border: 'none',
+                                borderRadius: '50%', width: '18px', height: '18px', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                              }} aria-label="Remove">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" style={{ width: 8, height: 8 }}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                            </button>
+                            {m.type?.startsWith('image/') || m.dataUrl?.match(/\.(jpeg|jpg|gif|png|webp)$/i) ? (
+                              <img src={m.dataUrl} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8' }}>{m.name?.split('.').pop()?.toUpperCase() || 'FILE'}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Accordion list for elements past the 4x2 grid (> 8 items) */}
+                      {remainingMedia.length > 0 && (
+                        <div>
+                          <div style={{
+                            maxHeight: isMediaExpanded ? '2000px' : '0px',
+                            overflow: 'hidden',
+                            transition: 'max-height 0.3s ease-in-out',
+                            marginTop: isMediaExpanded ? '8px' : '0'
+                          }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                              {remainingMedia.map(m => (
+                                <div key={m.id} style={{
+                                  position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '10px',
+                                  overflow: 'hidden', cursor: 'pointer', background: '#ffffff',
+                                  border: '1px solid #e2e8f0',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                                }} onClick={() => setPreviewMedia(m)}>
+                                  <button onClick={(e) => { e.stopPropagation(); handleRemoveMedia(item.id, m.id); }}
+                                    style={{
+                                      position: 'absolute', top: '4px', right: '4px', zIndex: 10,
+                                      background: 'rgba(239,68,68,0.95)', color: '#fff', border: 'none',
+                                      borderRadius: '50%', width: '18px', height: '18px', display: 'flex',
+                                      alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
+                                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                    }} aria-label="Remove">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" style={{ width: 8, height: 8 }}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                                  </button>
+                                  {m.type?.startsWith('image/') || m.dataUrl?.match(/\.(jpeg|jpg|gif|png|webp)$/i) ? (
+                                    <img src={m.dataUrl} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  ) : (
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8' }}>{m.name?.split('.').pop()?.toUpperCase() || 'FILE'}</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => setExpandedMediaCards(prev => ({ ...prev, [item.id]: !isMediaExpanded }))}
                             style={{
-                              position: 'absolute', top: '4px', right: '4px', zIndex: 10,
-                              background: 'rgba(239,68,68,0.95)', color: '#fff', border: 'none',
-                              borderRadius: '50%', width: '20px', height: '20px', display: 'flex',
-                              alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
-                              boxShadow: '0 1px 4px rgba(0,0,0,0.25)'
-                            }} aria-label="Remove">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" style={{ width: 10, height: 10 }}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                              background: 'none', border: 'none', color: accent, fontSize: '0.72rem',
+                              fontWeight: 700, cursor: 'pointer', padding: '8px 0 0', display: 'flex',
+                              alignItems: 'center', gap: '3px', outline: 'none'
+                            }}
+                          >
+                            {isMediaExpanded ? 'Show Less Files' : `View More Files (+${remainingMedia.length})`}
+                            <svg
+                              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                              style={{ width: 10, height: 10, transform: isMediaExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+                            >
+                              <polyline points="6 9 12 15 18 9" />
+                            </svg>
                           </button>
-                          {m.type?.startsWith('image/') || m.dataUrl?.match(/\.(jpeg|jpg|gif|png|webp)$/i) ? (
-                            <img src={m.dataUrl} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8' }}>{m.name?.split('.').pop()?.toUpperCase() || 'FILE'}</span>
-                          )}
                         </div>
-                      ))}
-                      {item.media.length > 4 && (
-                        <div style={{
-                          width: '100%', maxWidth: '100px', height: '100px', borderRadius: '10px', background: '#f8fafc',
-                          border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '0.95rem', fontWeight: 700, color: '#64748b',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
-                        }}>+{item.media.length - 4}</div>
                       )}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
 
               {/* ── Beautiful individual pill-buttons action row ── */}

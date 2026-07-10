@@ -9,6 +9,7 @@ import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import { approvals, formatCurrency, investors, approvalHistory, getCategoryFromAmount } from '../../data/mockData';
 import { useToast } from '../../components/ui/Toast';
+import { apiRequest } from '../../config/apiHelper';
 
 // Icons
 const icons = {
@@ -103,131 +104,173 @@ export default function ApprovalsQueue() {
     }, 1000);
   };
 
-  const [depositsList, setDepositsList] = useState(approvals.deposits);
-  const [withdrawalsList, setWithdrawalsList] = useState(approvals.withdrawals);
+  const [depositsList, setDepositsList] = useState([]);
+  const [withdrawalsList, setWithdrawalsList] = useState([]);
+  const [selectedRequestDetails, setSelectedRequestDetails] = useState(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [stats, setStats] = useState({ totalPending: 0, pendingDeposits: 0, pendingDepositsVal: 0, pendingWithdrawals: 0, pendingWithdrawalsVal: 0 });
+  const [loading, setLoading] = useState(true);
 
-  // Synchronize dynamic list updates from local storage/proxies
+  const fetchApprovals = async () => {
+    try {
+      setLoading(true);
+      const resDeposits = await apiRequest('/api/super-admin/transactions/approvals?type=deposit');
+      const dataDep = resDeposits.data || resDeposits;
+      let depQueue = [];
+      if (Array.isArray(dataDep)) {
+        depQueue = dataDep;
+      } else if (dataDep.queue && Array.isArray(dataDep.queue)) {
+        depQueue = dataDep.queue;
+      } else if (dataDep.transactions && Array.isArray(dataDep.transactions)) {
+        depQueue = dataDep.transactions;
+      }
+
+      const resWithdrawals = await apiRequest('/api/super-admin/transactions/approvals?type=withdrawal');
+      const dataWith = resWithdrawals.data || resWithdrawals;
+      let withQueue = [];
+      if (Array.isArray(dataWith)) {
+        withQueue = dataWith;
+      } else if (dataWith.queue && Array.isArray(dataWith.queue)) {
+        withQueue = dataWith.queue;
+      } else if (dataWith.transactions && Array.isArray(dataWith.transactions)) {
+        withQueue = dataWith.transactions;
+      }
+
+      const mapItem = (item, type) => ({
+        id: item.id || item._id,
+        type: type,
+        investorName: item.investorName || item.investor?.name || '—',
+        clientId: item.clientId || item.investor?.clientId || '—',
+        amount: Number(item.amount || 0),
+        date: item.date || item.createdAt || new Date().toISOString().split('T')[0],
+        status: (item.status || 'pending').toLowerCase(),
+        mode: item.paymentMethod || item.mode || 'Bank Transfer',
+        referenceId: item.referenceNumber || item.referenceId || '',
+        proofFile: item.proofFile || item.fileUrl || '',
+        bankName: item.bankName || 'HDFC Bank',
+        accountNo: item.accountNo || 'XXXX4567',
+        ifsc: item.ifsc || 'HDFC0001234',
+        note: item.remarks || item.note || ''
+      });
+
+      const depositsMapped = depQueue.map(item => mapItem(item, 'deposit'));
+      const withdrawalsMapped = withQueue.map(item => mapItem(item, 'withdrawal'));
+
+      setDepositsList(depositsMapped);
+      setWithdrawalsList(withdrawalsMapped);
+
+      const pendingDep = depositsMapped.filter(i => i.status === 'pending').length;
+      const pendingWith = withdrawalsMapped.filter(i => i.status === 'pending').length;
+      const pendingDepVal = depositsMapped.filter(i => i.status === 'pending').reduce((sum, item) => sum + item.amount, 0);
+      const pendingWithVal = withdrawalsMapped.filter(i => i.status === 'pending').reduce((sum, item) => sum + item.amount, 0);
+
+      setStats({
+        totalPending: pendingDep + pendingWith,
+        pendingDeposits: pendingDep,
+        pendingDepositsVal: pendingDepVal,
+        pendingWithdrawals: pendingWith,
+        pendingWithdrawalsVal: pendingWithVal
+      });
+
+    } catch (err) {
+      console.error('Failed to fetch approvals:', err);
+      // Fallback
+      setDepositsList(approvals.deposits);
+      setWithdrawalsList(approvals.withdrawals);
+      
+      const pendingDep = approvals.deposits.filter(i => i.status === 'pending').length;
+      const pendingWith = approvals.withdrawals.filter(i => i.status === 'pending').length;
+      const pendingDepVal = approvals.deposits.filter(i => i.status === 'pending').reduce((sum, item) => sum + item.amount, 0);
+      const pendingWithVal = approvals.withdrawals.filter(i => i.status === 'pending').reduce((sum, item) => sum + item.amount, 0);
+
+      setStats({
+        totalPending: pendingDep + pendingWith,
+        pendingDeposits: pendingDep,
+        pendingDepositsVal: pendingDepVal,
+        pendingWithdrawals: pendingWith,
+        pendingWithdrawalsVal: pendingWithVal
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    setDepositsList(approvals.deposits);
-    setWithdrawalsList(approvals.withdrawals);
-  }, [modal.open]);
+    fetchApprovals();
+  }, []);
 
   const currentItems = activeTab === 'deposits' ? depositsList : withdrawalsList;
-  const pendingDeposits = depositsList.filter(i => i.status === 'pending').length;
-  const pendingWithdrawals = withdrawalsList.filter(i => i.status === 'pending').length;
-  const totalPending = pendingDeposits + pendingWithdrawals;
+  const pendingDeposits = stats.pendingDeposits;
+  const pendingWithdrawals = stats.pendingWithdrawals;
+  const totalPending = stats.totalPending;
+  const pendingDepositsVal = stats.pendingDepositsVal;
+  const pendingWithdrawalsVal = stats.pendingWithdrawalsVal;
 
-  // Calculate values
-  const pendingDepositsVal = depositsList.filter(i => i.status === 'pending').reduce((sum, item) => sum + item.amount, 0);
-  const pendingWithdrawalsVal = withdrawalsList.filter(i => i.status === 'pending').reduce((sum, item) => sum + item.amount, 0);
-
-  const handleViewDetails = (item) => {
+  const handleViewDetails = async (item) => {
     setModal({ open: true, type: 'details', item });
     setAdminNote('');
     setRejectReason('');
     setShowRejectForm(false);
+    setSelectedRequestDetails(null);
+
+    try {
+      setLoadingDetails(true);
+      const res = await apiRequest(`/api/super-admin/transactions/${item.id || item._id}`);
+      const data = res.data || res;
+      setSelectedRequestDetails(data);
+    } catch (err) {
+      console.error("Failed to load details for transaction:", err);
+      setSelectedRequestDetails(null);
+    } finally {
+      setLoadingDetails(false);
+    }
   };
 
-  const confirmApprove = () => {
+  const confirmApprove = async () => {
     const item = modal.item;
     if (!item) return;
     
-    // Update approvals state
-    if (item.type === 'deposit') {
-      const updated = depositsList.map(d => d.id === item.id ? { ...d, status: 'approved', approvedAt: new Date().toISOString().split('T')[0] } : d);
-      setDepositsList(updated);
-      approvals.deposits = updated;
-    } else {
-      const updated = withdrawalsList.map(w => w.id === item.id ? { ...w, status: 'approved', approvedAt: new Date().toISOString().split('T')[0] } : w);
-      setWithdrawalsList(updated);
-      approvals.withdrawals = updated;
+    try {
+      await apiRequest(`/api/super-admin/transactions/${item.id || item._id}/action`, {
+        method: 'PATCH',
+        body: {
+          status: 'APPROVED',
+          rejectionReason: adminNote || 'Verified bank ledger statement'
+        }
+      });
+
+      addToast('success', 'Request Approved', `${item.type === 'deposit' ? 'Deposit' : 'Withdrawal'} of ${formatCurrency(item.amount)} approved.`);
+      setModal({ open: false, type: '', item: null });
+      setAdminNote('');
+      fetchApprovals();
+    } catch (err) {
+      console.error('Failed to approve transaction request:', err);
+      addToast('danger', 'Approval Failed', err.message || 'Failed to approve request.');
     }
-
-    // Push entry to approvalHistory log
-    approvalHistory.unshift({
-      id: Date.now(),
-      type: item.type,
-      investorName: item.investorName,
-      clientId: item.clientId,
-      amount: item.amount,
-      date: item.date,
-      status: 'approved',
-      adminNote: adminNote || 'Verified bank ledger statement',
-      actionAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
-    });
-
-    // Update investor profile stats & investments
-    const investor = investors.find(inv => inv.clientId === item.clientId);
-    if (investor) {
-      if (item.type === 'deposit') {
-        investor.totalInvestment += item.amount;
-        
-        // Push record to investments
-        investor.investments.push({
-          id: Date.now(),
-          segment: 'Pending Allocation',
-          amount: item.amount,
-          date: item.date,
-          roi: investor.roiPercentage || 1.2,
-          status: 'active',
-          risk: 25
-        });
-      } else {
-        investor.totalInvestment = Math.max(0, investor.totalInvestment - item.amount);
-        
-        // Push withdrawal record
-        investor.investments.push({
-          id: Date.now(),
-          segment: 'Withdrawal',
-          amount: -item.amount,
-          date: item.date,
-          roi: 0,
-          status: 'closed',
-          risk: 0
-        });
-      }
-      
-      // Automatically evaluate tier
-      investor.category = getCategoryFromAmount(investor.totalInvestment);
-    }
-
-    addToast('success', 'Request Approved', `${item.type === 'deposit' ? 'Deposit' : 'Withdrawal'} of ${formatCurrency(item.amount)} approved for ${item.investorName}`);
-    setModal({ open: false, type: '', item: null });
-    setAdminNote('');
   };
 
-  const confirmReject = () => {
+  const confirmReject = async () => {
     const item = modal.item;
     if (!item || !rejectReason.trim()) return;
 
-    // Update approvals state
-    if (item.type === 'deposit') {
-      const updated = depositsList.map(d => d.id === item.id ? { ...d, status: 'rejected', rejectedAt: new Date().toISOString().split('T')[0] } : d);
-      setDepositsList(updated);
-      approvals.deposits = updated;
-    } else {
-      const updated = withdrawalsList.map(w => w.id === item.id ? { ...w, status: 'rejected', rejectedAt: new Date().toISOString().split('T')[0] } : w);
-      setWithdrawalsList(updated);
-      approvals.withdrawals = updated;
+    try {
+      await apiRequest(`/api/super-admin/transactions/${item.id || item._id}/action`, {
+        method: 'PATCH',
+        body: {
+          status: 'REJECTED',
+          rejectionReason: rejectReason.trim()
+        }
+      });
+
+      addToast('error', 'Request Rejected', `${item.type === 'deposit' ? 'Deposit' : 'Withdrawal'} of ${formatCurrency(item.amount)} rejected.`);
+      setModal({ open: false, type: '', item: null });
+      setRejectReason('');
+      setShowRejectForm(false);
+      fetchApprovals();
+    } catch (err) {
+      console.error('Failed to reject transaction request:', err);
+      addToast('danger', 'Rejection Failed', err.message || 'Failed to reject request.');
     }
-
-    // Push entry to approvalHistory log
-    approvalHistory.unshift({
-      id: Date.now(),
-      type: item.type,
-      investorName: item.investorName,
-      clientId: item.clientId,
-      amount: item.amount,
-      date: item.date,
-      status: 'rejected',
-      adminNote: rejectReason,
-      actionAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
-    });
-
-    addToast('error', 'Request Rejected', `${item.type === 'deposit' ? 'Deposit' : 'Withdrawal'} of ${formatCurrency(item.amount)} rejected for ${item.investorName}`);
-    setModal({ open: false, type: '', item: null });
-    setRejectReason('');
-    setShowRejectForm(false);
   };
 
   return (
@@ -407,7 +450,7 @@ export default function ApprovalsQueue() {
         }
       >
         {modal.item && (() => {
-          const investorObj = investors.find(i => i.clientId === modal.item.clientId) || {};
+          const investorObj = selectedRequestDetails?.investorProfile || selectedRequestDetails || investors.find(i => i.clientId === modal.item.clientId) || {};
           const tier = investorObj.category || 'silver';
           const initials = modal.item.investorName ? modal.item.investorName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'IN';
           
