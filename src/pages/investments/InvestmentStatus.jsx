@@ -576,25 +576,27 @@ export default function InvestmentStatus() {
               key={item.id}
               style={{
                 position: 'relative',
-                background: '#fff',
+                background: '#ffffff',
                 borderRadius: '12px',
                 padding: '24px',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
-                border: '1px solid var(--color-border-light)',
-                borderLeft: `5px solid ${accent}`,
+                boxShadow: '0 4px 16px rgba(6, 29, 19, 0.02)',
+                border: '1.5px solid var(--color-border-light)',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '20px',
-                transition: 'all 0.3s'
+                transition: 'all 0.25s ease-in-out'
               }}
             >
               {/* Header block with title, segment, and action buttons */}
               <div className="kfpl-status-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--color-border-light)', paddingBottom: '16px', margin: 0 }}>
                 <div className="kfpl-status-card-title-group">
-                  <div className="kfpl-status-card-title-row" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <h3 className="kfpl-status-card-title" style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--color-navy)', margin: 0 }}>
-                      {item.isSegmentWide ? `${item.segment} Segment Update` : item.project}
-                    </h3>
+                  <div className="kfpl-status-card-title-row" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: accent, display: 'inline-block', boxShadow: `0 0 8px ${accent}` }}></span>
+                      <h3 className="kfpl-status-card-title" style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--color-navy)', margin: 0, letterSpacing: '-0.3px' }}>
+                        {item.isSegmentWide ? `${item.segment} Segment Update` : item.project}
+                      </h3>
+                    </div>
                     <Badge status={['Active', 'Ongoing', 'In Production'].includes(item.status) ? 'active' : 'pending'}>{item.status}</Badge>
                     {item.isSegmentWide && (
                       <Badge status="info">Segment Wide</Badge>
@@ -603,10 +605,7 @@ export default function InvestmentStatus() {
                   
                   {/* Meta tag pills */}
                   <div className="kfpl-status-card-meta-row" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginTop: '8px' }}>
-                    <span className="kfpl-stat-pill" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: `${accent}08`, borderRadius: '6px', border: `1px solid ${accent}20` }}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12, color: accent }}>
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                      </svg>
+                    <span className="kfpl-stat-pill" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: `${accent}08`, borderRadius: '6px', border: `1px solid ${accent}15` }}>
                       <span style={{ fontSize: '0.72rem', fontWeight: 800, color: accent, textTransform: 'uppercase', letterSpacing: '0.02em' }}>{item.segment}</span>
                     </span>
                     <span className="kfpl-stat-pill" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-border-light)' }}>
@@ -616,7 +615,7 @@ export default function InvestmentStatus() {
                       <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Updated: {item.lastUpdate}</span>
                     </span>
                     {(item.media || []).length > 0 && (
-                      <span className="kfpl-stat-pill" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                      <span className="kfpl-stat-pill" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.15)' }}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12, color: '#10B981' }}>
                           <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                         </svg>
@@ -632,9 +631,9 @@ export default function InvestmentStatus() {
                     className="kfpl-status-card-btn"
                     onClick={() => { setEditId(editId === item.id ? null : item.id); setUpdateNote(''); setIsSegmentWidePost(false); }}
                     style={{
-                      background: editId === item.id ? 'var(--color-surface)' : 'rgba(212, 175, 55, 0.08)',
+                      background: editId === item.id ? 'var(--color-surface)' : 'rgba(212, 175, 55, 0.06)',
                       color: editId === item.id ? 'var(--color-text-secondary)' : 'var(--color-gold-dark)',
-                      borderColor: editId === item.id ? 'var(--color-border)' : 'rgba(212, 175, 55, 0.25)',
+                      borderColor: editId === item.id ? 'var(--color-border)' : 'rgba(212, 175, 55, 0.2)',
                     }}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -687,7 +686,7 @@ export default function InvestmentStatus() {
                       <span className="kfpl-status-progress-value" style={{ fontSize: '0.9rem', fontWeight: 800, color: accent }}>{item.progress}%</span>
                     </div>
                     <div className="kfpl-status-progress-bar" style={{ height: '8px', background: 'var(--color-border-light)', borderRadius: '4px', overflow: 'hidden' }}>
-                      <div className="kfpl-status-progress-bar-fill" style={{ width: `${item.progress}%`, height: '100%', background: accent, borderRadius: '4px', boxShadow: `0 0 8px ${accent}40` }} />
+                      <div className="kfpl-status-progress-bar-fill" style={{ width: `${item.progress}%`, height: '100%', background: accent, borderRadius: '4px', boxShadow: `0 0 8px ${accent}30` }} />
                     </div>
                   </div>
 
@@ -719,7 +718,8 @@ export default function InvestmentStatus() {
                     border: '1.5px solid var(--color-border-light)',
                     borderRadius: '10px',
                     padding: '16px 20px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.01)'
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.01)',
+                    borderLeft: `4px solid ${accent}`
                   }}>
                     <div className="kfpl-status-bubble-header" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-text-muted)', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12, color: accent }}>
