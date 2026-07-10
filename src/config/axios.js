@@ -1,0 +1,60 @@
+/* ============================================================
+   Config: axios.js
+   Description: Centralized Axios instance with auth token,
+                base URL and interceptors
+   ============================================================ */
+
+import axios from 'axios';
+
+// Local + Production URLs
+const BASE_URL =
+  window.location.hostname === 'localhost'
+    ? 'http://192.168.1.22:5000/api'
+    : 'http://192.168.1.22:5000/api';
+
+const api = axios.create({
+  baseURL: BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 15000,
+});
+
+// ── Request Interceptor: Attach Bearer Token ──────────────
+api.interceptors.request.use(
+  (config) => {
+    try {
+      const authData = localStorage.getItem('kfpl_auth');
+
+      if (authData) {
+        const token = JSON.parse(authData)?.token;
+
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to parse auth data:', err);
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// ── Response Interceptor: Handle 401 ─────────────────────
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('kfpl_auth');
+      window.location.href = '/login';
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+export default api;
+
+/* ============ END: axios.js ============ */

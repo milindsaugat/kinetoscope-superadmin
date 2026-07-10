@@ -1,0 +1,328 @@
+/* ============================================================
+   Page: InvestmentList.jsx
+   Description: All investments across all clients
+   ============================================================ */
+
+import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
+import DataTable from '../../components/ui/DataTable';
+import Badge from '../../components/ui/Badge';
+import { investors, formatCurrency } from '../../data/mockData';
+import { apiRequest } from '../../config/apiHelper';
+import { useToast } from '../../components/ui/Toast';
+
+function formatDateDMY(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  const day = String(d.getDate()).padStart(2, '0');
+  const mon = String(d.getMonth() + 1).padStart(2, '0');
+  const yr = d.getFullYear();
+  return `${day}/${mon}/${yr}`;
+}
+
+function getEndDateDMY(dateStr, periodMonths) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  const months = parseInt(periodMonths, 10) || 24; // Default to 24 months
+  d.setMonth(d.getMonth() + months);
+  const day = String(d.getDate()).padStart(2, '0');
+  const mon = String(d.getMonth() + 1).padStart(2, '0');
+  const yr = d.getFullYear();
+  return `${day}/${mon}/${yr}`;
+}
+
+function getEndDateYYYYMMDD(dateStr, periodMonths) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const months = parseInt(periodMonths, 10) || 24;
+  d.setMonth(d.getMonth() + months);
+  const yr = d.getFullYear();
+  const mon = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${yr}-${mon}-${day}`;
+}
+
+export default function InvestmentList() {
+  const navigate = useNavigate();
+  const addToast = useToast();
+  const [investments, setInvestments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [renderTrigger, setRenderTrigger] = useState(0);
+  const [extendingInvestment, setExtendingInvestment] = useState(null);
+  const [extensionEndDate, setExtensionEndDate] = useState('');
+  const [segmentFilter, setSegmentFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  useEffect(() => {
+    const fetchInvestments = async () => {
+      setLoading(true);
+      try {
+        const data = await apiRequest('/api/super-admin/investments');
+        const list = Array.isArray(data) ? data : (data.investments || []);
+        setInvestments(list);
+      } catch (err) {
+        console.error('Failed to fetch investments from API', err);
+        setInvestments([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInvestments();
+  }, [renderTrigger]);
+
+  const handleExtendContractToDate = async (investmentId, newEndDateStr) => {
+    if (!newEndDateStr) return;
+    
+    try {
+      // Call the backend PATCH API for contract extension
+      await apiRequest(`/api/super-admin/investments/${investmentId}/extend`, {
+        method: 'PATCH',
+        body: JSON.stringify({ newEndDate: new Date(newEndDateStr).toISOString() })
+      });
+
+      addToast('Contract successfully extended!', 'success', 'Contract Extended');
+      // Refresh the investments list from the API
+      setRenderTrigger(prev => prev + 1);
+    } catch (err) {
+      console.error('Failed to extend contract via API:', err);
+      
+      // Fallback: update local state if API fails
+      const selectedEndDate = new Date(newEndDateStr);
+      let investment = investments.find(i => (i._id || i.id) === investmentId);
+      if (!investment) {
+        investment = mockInvestments.find(i => (i._id || i.id) === investmentId);
+      }
+      
+      if (investment) {
+        const startDate = new Date(investment.investmentDate || investment.date || investment.createdAt);
+        const yearsDiff = selectedEndDate.getFullYear() - startDate.getFullYear();
+        const monthsDiff = selectedEndDate.getMonth() - startDate.getMonth();
+        const calculatedMonths = Math.max(1, (yearsDiff * 12) + monthsDiff);
+
+        setInvestments(prev => prev.map(inv => {
+          if ((inv._id || inv.id) === investmentId) {
+            return { ...inv, contractPeriod: calculatedMonths, durationMonths: calculatedMonths };
+          }
+          return inv;
+        }));
+
+        addToast(`Contract extended locally. New duration: ${calculatedMonths} Months.`, 'warning', 'Local Update');
+      } else {
+        addToast(err.message || 'Failed to extend contract.', 'danger', 'Error');
+      }
+    }
+  };
+
+  // Flatten mock investments for fallback
+  const mockInvestments = useMemo(() => {
+    return investors.flatMap(inv =>
+      inv.investments.map(investment => ({
+        ...investment,
+        investorName: inv.name,
+        clientId: inv.clientId,
+        investorId: inv.id,
+        investmentAmount: investment.amount,
+        roiPercentage: investment.roi,
+        riskPercentage: investment.risk,
+        investmentDate: investment.date,
+        contractPeriod: investment.contractPeriod || 24, // default 24 months
+      }))
+    );
+  }, [renderTrigger]);
+
+  const rawDisplayData = investments.length > 0 ? investments : mockInvestments;
+
+  const uniqueSegments = useMemo(() => {
+    return Array.from(new Set(rawDisplayData.map(inv => inv.segment))).filter(Boolean);
+  }, [rawDisplayData]);
+
+  const uniqueStatuses = useMemo(() => {
+    return Array.from(new Set(rawDisplayData.map(inv => inv.status || 'Active'))).filter(Boolean);
+  }, [rawDisplayData]);
+
+  const filteredDisplayData = useMemo(() => {
+    return rawDisplayData.filter(inv => {
+      if (segmentFilter !== 'all' && inv.segment !== segmentFilter) return false;
+      if (statusFilter !== 'all' && (inv.status || 'Active') !== statusFilter) return false;
+      return true;
+    });
+  }, [rawDisplayData, segmentFilter, statusFilter]);
+
+  const columns = [
+    {
+      header: 'Client',
+      accessor: 'clientId',
+      render: (row) => {
+        const clientObj = row.clientId && typeof row.clientId === 'object' ? row.clientId : null;
+        const clientName = row.investorName || clientObj?.profile?.fullName || clientObj?.userId?.name || (typeof row.clientId === 'string' ? row.clientId : '') || 'N/A';
+        const clientCode = clientObj?.clientCode || row.clientCode || (typeof row.clientId === 'string' ? row.clientId : '');
+        return (
+          <div>
+            <div className="kfpl-table-cell-primary">{clientName}</div>
+            <div className="kfpl-table-cell-secondary">{clientCode}</div>
+          </div>
+        );
+      },
+    },
+    { header: 'Segment', accessor: 'segment', render: (row) => <span className="font-medium">{row.segment}</span> },
+    { header: 'Amount', accessor: 'investmentAmount', render: (row) => <span className="font-semibold">{formatCurrency(row.investmentAmount || row.amount || 0)}</span> },
+    { header: 'ROI %', accessor: 'roiPercentage', render: (row) => `${row.roiPercentage || row.roi || 0}%` },
+    { header: 'Risk %', accessor: 'riskPercentage', render: (row) => `${row.riskPercentage || row.risk || 0}%` },
+    { header: 'Contract Start', accessor: 'investmentDate', render: (row) => formatDateDMY(row.investmentDate || row.date || row.createdAt) },
+    {
+      header: 'End Date',
+      render: (row) => {
+        const period = row.contractPeriod || row.durationMonths || 24;
+        const startDate = row.investmentDate || row.date || row.createdAt;
+        // If API returns contractEndDate, use that directly
+        if (row.contractEndDate) {
+          return (
+            <div>
+              <div>{formatDateDMY(row.contractEndDate)}</div>
+              <div className="kfpl-table-cell-secondary">{period} Months</div>
+            </div>
+          );
+        }
+        return (
+          <div>
+            <div>{getEndDateDMY(startDate, period)}</div>
+            <div className="kfpl-table-cell-secondary">{period} Months</div>
+          </div>
+        );
+      }
+    },
+    { header: 'Status', accessor: 'status', render: (row) => <Badge status={row.status || 'active'}>{row.status || 'active'}</Badge> },
+    {
+      header: 'Actions',
+      render: (row) => (
+        <button
+          className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm"
+          style={{ borderColor: 'var(--color-gold)', color: 'var(--color-gold-dark)', fontWeight: 600, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setExtendingInvestment(row);
+            const currentEndDate = getEndDateYYYYMMDD(row.investmentDate || row.date, row.contractPeriod || 24);
+            setExtensionEndDate(currentEndDate);
+          }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" width="12" height="12">
+            <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+          </svg>
+          Extend
+        </button>
+      )
+    }
+  ];
+
+  return (
+    <div className="kfpl-page">
+      <div className="kfpl-page-header">
+        <div className="kfpl-page-header-left">
+          <h2 className="kfpl-page-title">Investments</h2>
+          <p className="kfpl-page-subtitle">All investments across all clients & agents</p>
+        </div>
+        <div className="kfpl-page-header-actions" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <select
+            value={segmentFilter}
+            onChange={e => setSegmentFilter(e.target.value)}
+            className="kfpl-select"
+            style={{ width: '160px', padding: '8px 12px', fontSize: '0.875rem', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+          >
+            <option value="all">All Segments</option>
+            {uniqueSegments.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="kfpl-select"
+            style={{ width: '140px', padding: '8px 12px', fontSize: '0.875rem', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+          >
+            <option value="all">All Statuses</option>
+            {uniqueStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+
+          <button className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" onClick={() => navigate('/investments/assign')}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Assign Investment
+          </button>
+        </div>
+      </div>
+
+      <DataTable
+        columns={columns}
+        data={filteredDisplayData}
+        onRowClick={(row) => row.investorId ? navigate(`/investors/${row.investorId}`) : null}
+        searchPlaceholder="Search by investor, segment..."
+      />
+
+      {extendingInvestment && createPortal(
+        <div
+          className="kfpl-modal-overlay"
+          onClick={() => setExtendingInvestment(null)}
+        >
+          <div
+            className="kfpl-modal"
+            style={{ maxWidth: '440px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="kfpl-modal-header">
+              <h3 className="kfpl-modal-title">Extend Contract</h3>
+              <button className="kfpl-modal-close" onClick={() => setExtendingInvestment(null)} aria-label="Close modal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="kfpl-modal-body" style={{ padding: '20px 24px' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: '16px', lineHeight: 1.5 }}>
+                Extend contract for <strong>{extendingInvestment.investorName}</strong>'s investment in <strong>{extendingInvestment.segment}</strong>.
+              </p>
+              <div style={{ marginBottom: '16px' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Contract Start Date:</span>
+                <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>
+                  {formatDateDMY(extendingInvestment.investmentDate || extendingInvestment.date)}
+                </div>
+              </div>
+              <div style={{ marginBottom: '20px' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Current End Date:</span>
+                <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>
+                  {getEndDateDMY(extendingInvestment.investmentDate || extendingInvestment.date, extendingInvestment.contractPeriod || 24)} ({extendingInvestment.contractPeriod || 24} Months)
+                </div>
+              </div>
+              <div className="kfpl-input-group">
+                <label className="kfpl-input-label">Select New End Date <span className="required">*</span></label>
+                <input
+                  type="date"
+                  className="kfpl-input"
+                  value={extensionEndDate}
+                  onChange={(e) => setExtensionEndDate(e.target.value)}
+                  min={getEndDateYYYYMMDD(extendingInvestment.investmentDate || extendingInvestment.date, 0)}
+                  required
+                />
+              </div>
+            </div>
+            <div className="kfpl-modal-footer">
+              <button
+                className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm"
+                onClick={() => setExtendingInvestment(null)}
+              >Cancel</button>
+              <button
+                className="kfpl-btn kfpl-btn--primary kfpl-btn--sm"
+                onClick={() => {
+                  handleExtendContractToDate(extendingInvestment._id || extendingInvestment.id, extensionEndDate);
+                  setExtendingInvestment(null);
+                }}
+              >Confirm Extension</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+/* ============ END: InvestmentList.jsx ============ */

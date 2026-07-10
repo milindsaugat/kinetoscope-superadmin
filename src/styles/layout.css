@@ -1,0 +1,600 @@
+/* ============================================================
+   KFPL Super Admin Portal — Layout Styles (Professional)
+   Description: Sidebar, Header, MainLayout, PageWrapper
+   ============================================================ */
+
+/* ── Main Layout Container ─────────────────────── */
+.kfpl-app {
+  display: flex;
+  min-height: 100vh;
+  background-color: var(--color-surface);
+}
+
+.kfpl-main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  margin-left: var(--sidebar-width);
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 0;
+}
+
+.kfpl-main-area.sidebar-collapsed {
+  margin-left: var(--sidebar-collapsed-width);
+}
+
+.kfpl-content {
+  flex: 1;
+  padding: 28px 32px;
+  overflow-y: auto;
+  margin-top: var(--header-height);
+  min-width: 0;
+}
+
+/* ── Sidebar ─────────────────────── */
+.kfpl-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: var(--sidebar-width);
+  height: 100vh;
+  background: var(--color-white);
+  box-shadow: var(--shadow-sidebar);
+  z-index: var(--z-sidebar);
+  display: flex;
+  flex-direction: column;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  border-right: 1px solid var(--color-border-light);
+}
+
+.kfpl-sidebar.collapsed {
+  width: var(--sidebar-collapsed-width);
+}
+
+/* ── Sidebar Logo ─────────────────────── */
+.kfpl-sidebar-logo {
+  display: flex;
+  align-items: center;
+  padding: 20px 18px;
+  gap: 12px;
+  border-bottom: 1px solid var(--color-border-light);
+  min-height: 72px;
+  flex-shrink: 0;
+}
+
+.kfpl-sidebar-logo-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--color-gold) 0%, #10B981 50%, var(--color-gold-dark) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.kfpl-sidebar-logo-icon span {
+  font-weight: 800;
+  font-size: 1.125rem;
+  color: var(--color-white);
+  line-height: 1;
+}
+
+.kfpl-sidebar-logo-text {
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.kfpl-sidebar.collapsed .kfpl-sidebar-logo-text {
+  opacity: 0;
+  width: 0;
+}
+
+.kfpl-sidebar-logo-title {
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: var(--color-text-primary);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.kfpl-sidebar-logo-subtitle {
+  font-size: 0.625rem;
+  color: var(--color-gold-dark);
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* ── Sidebar Navigation ─────────────────────── */
+.kfpl-sidebar-nav {
+  flex: 1;
+  padding: 8px 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.kfpl-sidebar-nav::-webkit-scrollbar {
+  width: 3px;
+}
+
+.kfpl-sidebar-nav::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+}
+
+.kfpl-sidebar-section {
+  margin-bottom: 4px;
+}
+
+.kfpl-sidebar-section-title {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--color-text-muted);
+  padding: 12px 18px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: opacity 0.2s ease;
+}
+
+.kfpl-sidebar.collapsed .kfpl-sidebar-section-title {
+  opacity: 0;
+  height: 0;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+/* ── Sidebar Items ─────────────────────── */
+.kfpl-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 18px;
+  margin: 1px 8px;
+  border-radius: 8px;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  letter-spacing: 0.1px;
+}
+
+.kfpl-sidebar-item:hover {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.kfpl-sidebar-item.active {
+  background: var(--color-gold-light);
+  color: var(--color-gold-dark);
+  font-weight: 600;
+}
+
+.kfpl-sidebar-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  background: var(--color-gold);
+  border-radius: 0 3px 3px 0;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+}
+
+.kfpl-sidebar-item-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.kfpl-sidebar-item-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.8;
+}
+
+.kfpl-sidebar-item-label {
+  opacity: 1;
+  transition: opacity 0.2s ease;
+  flex: 1;
+}
+
+.kfpl-sidebar.collapsed .kfpl-sidebar-item-label {
+  opacity: 0;
+  width: 0;
+}
+
+.kfpl-sidebar.collapsed .kfpl-sidebar-item {
+  justify-content: center;
+  padding: 10px 0;
+  margin: 2px 8px;
+}
+
+.kfpl-sidebar-item-badge {
+  margin-left: auto;
+  background: linear-gradient(135deg, #E53935 0%, #C62828 100%);
+  color: var(--color-white);
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  min-width: 20px;
+  text-align: center;
+  line-height: 1.5;
+  box-shadow: 0 2px 6px rgba(198, 40, 40, 0.35);
+}
+
+.kfpl-sidebar.collapsed .kfpl-sidebar-item-badge {
+  display: none;
+}
+
+/* ── Sidebar Bottom (Logout + Toggle) ─────────────────────── */
+.kfpl-sidebar-bottom {
+  border-top: 1px solid var(--color-border-light);
+  flex-shrink: 0;
+}
+
+.kfpl-sidebar-logout {
+  color: var(--color-text-secondary) !important;
+  margin: 4px 8px !important;
+}
+
+.kfpl-sidebar-logout:hover {
+  background: var(--color-danger-bg) !important;
+  color: var(--color-danger) !important;
+}
+
+/* ── Sidebar Collapse Toggle ─────────────────────── */
+.kfpl-sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: var(--transition-smooth);
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.kfpl-sidebar-toggle:hover {
+  color: var(--color-gold-dark);
+  background: var(--color-surface);
+}
+
+.kfpl-sidebar-toggle svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.kfpl-sidebar.collapsed .kfpl-sidebar-toggle svg {
+  transform: rotate(180deg);
+}
+
+/* ── Header ─────────────────────── */
+.kfpl-header {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: var(--sidebar-width);
+  height: var(--header-height);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--color-border-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  z-index: var(--z-header);
+  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.kfpl-header.sidebar-collapsed {
+  left: var(--sidebar-collapsed-width);
+}
+
+.kfpl-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.kfpl-header-hamburger {
+  display: none;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.kfpl-header-hamburger:hover {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.kfpl-header-hamburger svg {
+  width: 22px;
+  height: 22px;
+}
+
+.kfpl-header-title-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.kfpl-header-title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  line-height: 1.3;
+}
+
+.kfpl-header-breadcrumb {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kfpl-header-breadcrumb span {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.kfpl-header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Header Icon Buttons ─────────────────────── */
+.kfpl-header-icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  position: relative;
+}
+
+.kfpl-header-icon-btn:hover {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.kfpl-header-icon-btn svg {
+  width: 19px;
+  height: 19px;
+}
+
+.kfpl-header-notification-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  background: linear-gradient(135deg, #E53935 0%, #C62828 100%);
+  border-radius: 50%;
+  border: 2px solid var(--color-white);
+  box-shadow: 0 0 0 1px rgba(198, 40, 40, 0.2);
+}
+
+/* ── Header Divider ─────────────────────── */
+.kfpl-header-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--color-border-light);
+  margin: 0 8px;
+}
+
+/* ── Header Admin Profile ─────────────────────── */
+.kfpl-header-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px 5px 5px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  margin-left: 4px;
+}
+
+.kfpl-header-profile:hover {
+  background: var(--color-surface);
+}
+
+.kfpl-header-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--color-navy) 0%, var(--color-navy-light) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-gold);
+  font-weight: 700;
+  font-size: 0.8125rem;
+  border: 2px solid rgba(16, 185, 129, 0.2);
+}
+
+.kfpl-header-profile-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.kfpl-header-profile-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  line-height: 1.2;
+}
+
+.kfpl-header-profile-role {
+  font-size: 0.6875rem;
+  color: var(--color-gold-dark);
+  line-height: 1.2;
+  font-weight: 500;
+}
+
+/* ── Page Wrapper ─────────────────────── */
+.kfpl-page {
+  width: 100%;
+  min-width: 0;
+  animation: fadeSlideUp 0.35s ease forwards;
+}
+
+.kfpl-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.kfpl-page-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kfpl-page-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--color-text-primary);
+  letter-spacing: -0.3px;
+}
+
+.kfpl-page-subtitle {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.kfpl-page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ── Mobile Sidebar Overlay ─────────────────────── */
+.kfpl-sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: calc(var(--z-sidebar) - 1);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.kfpl-sidebar-overlay.visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* ── Header Profile Dropdown & Dark Mode Styling ─────────────────────── */
+.kfpl-header-profile-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 220px;
+  background: var(--color-white);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-dropdown);
+  padding: 8px;
+  z-index: var(--z-toast);
+  animation: fadeIn 0.15s ease;
+}
+
+.kfpl-dropdown-profile-header {
+  padding: 8px 12px 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.kfpl-dropdown-profile-name {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.kfpl-dropdown-profile-email {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.kfpl-dropdown-divider {
+  height: 1px;
+  background: var(--color-border-light);
+  margin: 6px 0;
+}
+
+.kfpl-header-profile-dropdown .kfpl-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.kfpl-header-profile-dropdown .kfpl-dropdown-item:hover {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.kfpl-header-profile-dropdown .kfpl-dropdown-item svg {
+  color: var(--color-text-muted);
+}
+
+.kfpl-header-profile-dropdown .kfpl-dropdown-logout-btn:hover {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.kfpl-header-profile-dropdown .kfpl-dropdown-logout-btn:hover svg {
+  color: var(--color-danger);
+}
+
+/* ============ END: layout.css ============ */

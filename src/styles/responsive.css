@@ -1,0 +1,377 @@
+/* ============================================================
+   KFPL Super Admin Portal — Responsive Styles
+   Description: All media queries for tablet and mobile
+   ============================================================ */
+
+/* ── Tablet (768px - 1023px) ─────────────────────── */
+@media (max-width: 1023px) {
+  .kfpl-header {
+    padding: 0 20px;
+  }
+
+  .kfpl-content {
+    padding: 20px;
+  }
+
+  /* Dashboard */
+  .kfpl-dashboard-kpis {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .kfpl-dashboard-charts-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .kfpl-dashboard-full-row {
+    grid-template-columns: 1fr;
+  }
+
+  .kfpl-quick-actions-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .kfpl-dashboard-widgets {
+    grid-template-columns: 1fr;
+  }
+
+  /* Detail */
+  .kfpl-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .kfpl-detail-kpis-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Form */
+  .kfpl-form-row-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .kfpl-header-profile-info {
+    display: none;
+  }
+
+  .kfpl-table th,
+  .kfpl-table td {
+    padding: 8px 10px;
+  }
+}
+
+/* ── Mobile (< 768px) ─────────────────────── */
+@media (max-width: 767px) {
+  /* Sidebar — hidden by default, overlay on mobile */
+  .kfpl-sidebar {
+    width: var(--sidebar-width);
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .kfpl-sidebar.mobile-open {
+    width: var(--sidebar-width) !important;
+    transform: translateX(0) !important;
+  }
+
+  /* Restore full sidebar look when open on mobile */
+  .kfpl-sidebar.mobile-open .kfpl-sidebar-logo-text {
+    opacity: 1 !important;
+    width: auto !important;
+  }
+
+  .kfpl-sidebar.mobile-open .kfpl-sidebar-section-title {
+    opacity: 1 !important;
+    height: auto !important;
+    padding: 12px 18px 6px !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  .kfpl-sidebar.mobile-open .kfpl-sidebar-item {
+    justify-content: flex-start !important;
+    padding: 9px 18px !important;
+    margin: 1px 8px !important;
+  }
+
+  .kfpl-sidebar.mobile-open .kfpl-sidebar-item-label {
+    opacity: 1 !important;
+    width: auto !important;
+  }
+
+  .kfpl-sidebar.mobile-open .kfpl-sidebar-item-badge {
+    display: inline-flex !important;
+  }
+
+
+
+  /* Main area */
+  .kfpl-main-area {
+    margin-left: 0;
+  }
+
+  .kfpl-header {
+    left: 0;
+    padding: 0 16px;
+  }
+
+  .kfpl-header.sidebar-collapsed {
+    left: 0;
+  }
+
+  .kfpl-header-hamburger {
+    display: flex;
+  }
+
+  .kfpl-header-breadcrumb {
+    display: none;
+  }
+
+  .kfpl-header-title {
+    font-size: 0.9375rem;
+  }
+
+  .kfpl-header-icon-btn[aria-label="Search"],
+  .kfpl-header-icon-btn[aria-label="Messages"] {
+    display: none;
+  }
+
+  .kfpl-content {
+    padding: 16px;
+  }
+
+  /* Dashboard */
+  .kfpl-dashboard-kpis {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .kfpl-dashboard-charts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .kfpl-dashboard-full-row {
+    grid-template-columns: 1fr;
+  }
+
+  .kfpl-quick-actions-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .kfpl-dashboard-widgets {
+    grid-template-columns: 1fr;
+  }
+
+  .kfpl-welcome-banner {
+    padding: 20px 16px;
+  }
+
+  .kfpl-welcome-title {
+    font-size: 1.25rem;
+  }
+
+  .kfpl-welcome-stats {
+    flex-wrap: wrap;
+  }
+
+  .kfpl-welcome-deco {
+    display: none;
+  }
+
+  /* KPI card */
+  .kfpl-kpi-value {
+    font-size: 1.375rem;
+  }
+
+  /* Page header */
+  .kfpl-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .kfpl-page-header-actions {
+    width: 100%;
+  }
+
+  .kfpl-page-header-actions .kfpl-btn {
+    flex: 1;
+  }
+
+  /* Form */
+  .kfpl-form-row,
+  .kfpl-form-row-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .kfpl-form-card {
+    padding: 20px;
+  }
+
+  /* Table */
+  .kfpl-table-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .kfpl-search {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .kfpl-pagination {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .kfpl-table {
+    font-size: 0.72rem;
+  }
+
+  .kfpl-table th {
+    padding: 6px 8px;
+    font-size: 0.65rem;
+  }
+
+  .kfpl-table td {
+    padding: 6px 8px;
+  }
+
+  .kfpl-table-cell-primary {
+    font-size: 0.75rem;
+  }
+
+  .kfpl-table-cell-secondary {
+    font-size: 0.65rem;
+  }
+
+  /* Modal */
+  .kfpl-modal-overlay {
+    padding: 12px;
+    align-items: flex-end;
+  }
+
+  .kfpl-modal {
+    max-height: 90vh;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  }
+
+  /* Detail */
+  .kfpl-detail-header {
+    flex-direction: column;
+  }
+
+  .kfpl-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .kfpl-detail-kpis-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .kfpl-detail-actions {
+    width: 100%;
+  }
+
+  .kfpl-detail-actions .kfpl-btn {
+    flex: 1;
+  }
+
+  /* Toast */
+  .kfpl-toast-container {
+    right: 12px;
+    left: 12px;
+    max-width: none;
+  }
+
+  /* Hide sidebar toggle on mobile */
+  .kfpl-sidebar-toggle {
+    display: none;
+  }
+
+  /* Chart legend */
+  .kfpl-chart-legend {
+    gap: 8px;
+  }
+
+  /* Filter chips scroll */
+  .kfpl-filter-chips {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+
+  .kfpl-filter-chip {
+    flex-shrink: 0;
+  }
+
+  /* Responsive grid helper */
+  .kfpl-grid-2col {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+}
+
+/* ── Very small mobile (< 480px) ─────────────────────── */
+@media (max-width: 479px) {
+  .kfpl-dashboard-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .kfpl-quick-actions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .kfpl-kpi-value {
+    font-size: 1.25rem;
+  }
+
+  .kfpl-kpi-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .kfpl-kpi-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .kfpl-page-title {
+    font-size: 1.25rem;
+  }
+
+  .kfpl-chart-legend {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .kfpl-welcome-stats {
+    display: none;
+  }
+}
+
+/* ── Large Screens (>= 1440px) ─────────────────────── */
+@media (min-width: 1440px) {
+  .kfpl-content {
+    padding: 28px 32px;
+  }
+
+  .kfpl-dashboard-kpis {
+    gap: 24px;
+  }
+
+  .kfpl-dashboard-charts-grid {
+    gap: 24px;
+  }
+
+  .kfpl-dashboard-full-row {
+    gap: 24px;
+  }
+
+  .kfpl-quick-actions-grid {
+    gap: 18px;
+  }
+
+  .kfpl-dashboard-widgets {
+    gap: 24px;
+  }
+}
+
+/* ============ END: responsive.css ============ */

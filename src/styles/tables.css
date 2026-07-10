@@ -1,0 +1,341 @@
+/* ============================================================
+   KFPL Super Admin Portal — Table Styles
+   Description: DataTable, pagination, sorting, row styling
+   ============================================================ */
+
+/* ── Table Container ─────────────────────── */
+.kfpl-table-container {
+  width: 100%;
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--color-border-light);
+  overflow: hidden;
+}
+
+.kfpl-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.kfpl-table-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.kfpl-table-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.kfpl-table-count {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.kfpl-table-count strong {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+/* ── Table Scroll Wrapper ─────────────────────── */
+.kfpl-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.kfpl-table-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Table Element ─────────────────────── */
+.kfpl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.kfpl-table thead {
+  background: var(--color-surface);
+  border-bottom: 2px solid var(--color-border-light);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.kfpl-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  user-select: none;
+}
+
+.kfpl-table th:hover {
+  color: var(--color-text-primary);
+}
+
+.kfpl-table th .sort-icon {
+  display: inline-flex;
+  margin-left: 4px;
+  opacity: 0.3;
+  transition: var(--transition-fast);
+}
+
+.kfpl-table th:hover .sort-icon {
+  opacity: 0.6;
+}
+
+.kfpl-table th.sorted .sort-icon {
+  opacity: 1;
+  color: var(--color-gold);
+}
+
+.kfpl-table tbody tr {
+  border-bottom: 1px solid var(--color-border-light);
+  transition: var(--transition-fast);
+  cursor: pointer;
+}
+
+.kfpl-table tbody tr:hover {
+  background: rgba(201, 168, 76, 0.04);
+}
+
+.kfpl-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.kfpl-table td {
+  padding: 8px 12px;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.kfpl-table td.wrap {
+  white-space: normal;
+  max-width: 200px;
+}
+
+/* Alternating rows */
+.kfpl-table tbody tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.015);
+}
+
+.kfpl-table tbody tr:nth-child(even):hover {
+  background: rgba(201, 168, 76, 0.04);
+}
+
+/* ── Table Cell Variants ─────────────────────── */
+.kfpl-table-cell-primary {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-size: 0.8rem;
+}
+
+.kfpl-table-cell-secondary {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.kfpl-table-cell-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kfpl-table-action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.kfpl-table-action-btn:hover {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.kfpl-table-action-btn.danger:hover {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.kfpl-table-action-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Pagination ─────────────────────── */
+.kfpl-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-top: 1px solid var(--color-border-light);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.kfpl-pagination-info {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.kfpl-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kfpl-pagination-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  border: 1px solid transparent;
+}
+
+.kfpl-pagination-btn:hover:not(.active):not(:disabled) {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.kfpl-pagination-btn.active {
+  background: var(--color-navy);
+  color: var(--color-white);
+  border-color: var(--color-navy);
+}
+
+.kfpl-pagination-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.kfpl-pagination-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Checkbox in Table ─────────────────────── */
+.kfpl-checkbox {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-border);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.kfpl-checkbox:hover {
+  border-color: var(--color-gold);
+}
+
+.kfpl-checkbox.checked {
+  background: var(--color-gold);
+  border-color: var(--color-gold);
+}
+
+.kfpl-checkbox.checked svg {
+  width: 12px;
+  height: 12px;
+  color: var(--color-navy);
+}
+
+/* ── Filter Chips ─────────────────────── */
+.kfpl-filter-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kfpl-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.kfpl-filter-chip:hover {
+  border-color: var(--color-gold);
+  background: var(--color-gold-glow);
+}
+
+.kfpl-filter-chip.active {
+  background: var(--color-gold-glow);
+  border-color: var(--color-gold);
+  color: var(--color-gold-dark);
+}
+
+.kfpl-filter-chip svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Media query to allow tables to fit without horizontal scrolling on large devices */
+@media (min-width: 1024px) {
+  .kfpl-table-scroll {
+    overflow-x: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .kfpl-table-scroll::-webkit-scrollbar {
+    display: none;
+  }
+  .kfpl-table td, .kfpl-table th {
+    white-space: nowrap;
+  }
+  /* Prevent critical values and metadata from wrapping awkwardly */
+  .kfpl-badge,
+  .font-semibold,
+  td.font-semibold,
+  .kfpl-table-action-btn,
+  .kfpl-table td:nth-child(1),
+  .kfpl-table td:nth-child(2),
+  .kfpl-table th:nth-child(1),
+  .kfpl-table th:nth-child(2) {
+    white-space: nowrap;
+  }
+}
+
+/* ============ END: tables.css ============ */
