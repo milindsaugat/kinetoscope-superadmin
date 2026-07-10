@@ -59,7 +59,9 @@ export default function InvestmentList() {
       setLoading(true);
       try {
         const data = await apiRequest('/api/super-admin/investments');
-        const list = Array.isArray(data) ? data : (data.investments || []);
+        const list = Array.isArray(data)
+          ? data
+          : (data.investments || data.data?.investments || (data.data && Array.isArray(data.data) ? data.data : []));
         setInvestments(list);
       } catch (err) {
         console.error('Failed to fetch investments from API', err);
@@ -115,24 +117,19 @@ export default function InvestmentList() {
     }
   };
 
-  // Flatten mock investments for fallback
-  const mockInvestments = useMemo(() => {
-    return investors.flatMap(inv =>
-      inv.investments.map(investment => ({
-        ...investment,
-        investorName: inv.name,
-        clientId: inv.clientId,
-        investorId: inv.id,
-        investmentAmount: investment.amount,
-        roiPercentage: investment.roi,
-        riskPercentage: investment.risk,
-        investmentDate: investment.date,
-        contractPeriod: investment.contractPeriod || 24, // default 24 months
-      }))
-    );
-  }, [renderTrigger]);
+  // Filter out mock data from both local fallback and backend database seeded objects
+  const cleanInvestments = useMemo(() => {
+    const mockNames = ['John Doe', 'Sunil Verma', 'Kavita Reddy', 'Amit Joshi', 'Meera Iyer', 'Suresh Patel'];
+    return investments.filter(inv => {
+      const clientName = inv.clientName || 
+                         inv.investorName || 
+                         (inv.clientId && typeof inv.clientId === 'object' ? (inv.clientId.profile?.fullName || inv.clientId.userId?.name) : '') || 
+                         '';
+      return !mockNames.includes(clientName);
+    });
+  }, [investments]);
 
-  const rawDisplayData = investments.length > 0 ? investments : mockInvestments;
+  const rawDisplayData = cleanInvestments;
 
   const uniqueSegments = useMemo(() => {
     return Array.from(new Set(rawDisplayData.map(inv => inv.segment))).filter(Boolean);
@@ -156,17 +153,36 @@ export default function InvestmentList() {
       accessor: 'clientId',
       render: (row) => {
         const clientObj = row.clientId && typeof row.clientId === 'object' ? row.clientId : null;
-        const clientName = row.investorName || clientObj?.profile?.fullName || clientObj?.userId?.name || (typeof row.clientId === 'string' ? row.clientId : '') || 'N/A';
-        const clientCode = clientObj?.clientCode || row.clientCode || (typeof row.clientId === 'string' ? row.clientId : '');
+        const clientName = row.clientName || 
+                           row.investorName || 
+                           clientObj?.profile?.fullName || 
+                           clientObj?.userId?.name || 
+                           (typeof row.clientId === 'string' && !/^[0-9a-fA-F]{24}$/.test(row.clientId) ? row.clientId : '') || 
+                           'N/A';
+        const clientCode = row.clientCode || 
+                           clientObj?.clientCode || 
+                           clientObj?.profile?.clientCode || 
+                           clientObj?.userId?.clientCode || 
+                           '';
         return (
           <div>
             <div className="kfpl-table-cell-primary">{clientName}</div>
-            <div className="kfpl-table-cell-secondary">{clientCode}</div>
+            {clientCode && <div className="kfpl-table-cell-secondary">{clientCode}</div>}
           </div>
         );
       },
     },
-    { header: 'Segment', accessor: 'segment', render: (row) => <span className="font-medium">{row.segment}</span> },
+    { 
+      header: 'Segment', 
+      accessor: 'segment', 
+      render: (row) => {
+        const segmentText = row.segment || 
+                            (Array.isArray(row.segmentAllocation) && row.segmentAllocation.length > 0
+                              ? row.segmentAllocation.map(s => s.segmentName).join(', ')
+                              : '—');
+        return <span className="font-medium">{segmentText}</span>;
+      } 
+    },
     { header: 'Amount', accessor: 'investmentAmount', render: (row) => <span className="font-semibold">{formatCurrency(row.investmentAmount || row.amount || 0)}</span> },
     { header: 'ROI %', accessor: 'roiPercentage', render: (row) => `${row.roiPercentage || row.roi || 0}%` },
     { header: 'Risk %', accessor: 'riskPercentage', render: (row) => `${row.riskPercentage || row.risk || 0}%` },

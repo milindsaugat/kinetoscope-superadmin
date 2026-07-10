@@ -124,7 +124,7 @@ export default function AssignInvestment() {
   };
 
   const getClientCode = (client) => {
-    return client.clientCode || client.clientId || client.profile?.clientCode || '';
+    return client.clientCode || client.clientId || client.profile?.clientCode || client.user?.clientCode || '';
   };
 
   const handleProjectChange = (e) => {
@@ -305,7 +305,7 @@ export default function AssignInvestment() {
                 <select className="kfpl-select" name="clientId" value={form.clientId} onChange={handleChange} required>
                   <option value="">Choose client</option>
                   {clients.map(c => {
-                    const cId = c._id || c.id;
+                    const cId = c.user?._id || c.user?.id || c._id || c.id;
                     const cName = getClientName(c);
                     const cCode = getClientCode(c);
                     return (
