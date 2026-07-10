@@ -537,15 +537,20 @@ export default function InvestmentStatus() {
     }
   };
 
-  const handleRemoveMedia = (itemId, mediaId) => {
-    // Simply filter locally since it's associated with draft notes
-    setStatusUpdates(prev => prev.map(item => {
-      if (item.id === itemId) {
-        return { ...item, media: (item.media || []).filter(m => m.id !== mediaId) };
-      }
-      return item;
-    }));
-    addToast('Media removed', 'success', 'Removed');
+  const handleRemoveMedia = async (itemId, mediaId) => {
+    try {
+      await apiRequest(`/api/super-admin/projects/${itemId}/media`, {
+        method: 'DELETE',
+        body: JSON.stringify({
+          url: mediaId
+        })
+      });
+      addToast('Media removed successfully', 'success', 'Success');
+      await loadDashboardData();
+    } catch (err) {
+      console.error('Failed to remove media:', err);
+      addToast(err.message || 'Failed to remove media', 'error', 'Error');
+    }
   };
 
   const filteredUpdates = statusUpdates.filter(item => {
