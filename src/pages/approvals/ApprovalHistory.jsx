@@ -25,8 +25,8 @@ export default function ApprovalHistory() {
       const mapped = list.map((item, idx) => ({
         id: item.id || item._id || idx,
         type: item.type || 'deposit',
-        investorName: item.investorName || item.investor?.name || '—',
-        clientId: item.clientId || item.investor?.clientId || '—',
+        investorName: item.investorName || (item.clientId && typeof item.clientId === 'object' ? item.clientId.name : '') || '—',
+        clientId: item.investorCode || (item.clientId && typeof item.clientId === 'object' ? item.clientId.clientCode : item.clientId) || '—',
         amount: Number(item.amount || 0),
         date: item.date || item.createdAt || '—',
         status: (item.status || 'approved').toLowerCase(),
@@ -36,7 +36,7 @@ export default function ApprovalHistory() {
       setHistoryData(mapped);
     } catch (err) {
       console.error('Failed to load approval history:', err);
-      setHistoryData(approvalHistory);
+      setHistoryData([]);
     } finally {
       setLoading(false);
     }

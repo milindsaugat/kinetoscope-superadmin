@@ -56,6 +56,30 @@
   .kfpl-table td {
     padding: 8px 10px;
   }
+
+  /* Portfolio responsiveness on tablet */
+  .kfpl-portfolio-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .kfpl-portfolio-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .kfpl-portfolio-metrics {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  /* News & Media responsiveness on tablet */
+  .kfpl-nm-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .kfpl-nm-form-layout {
+    grid-template-columns: 1fr;
+  }
+
+  /* Detail View responsiveness on tablet */
+  .kfpl-detail-kpis-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 /* ── Mobile (< 768px) ─────────────────────── */
@@ -307,6 +331,56 @@
     grid-template-columns: 1fr !important;
     gap: 16px !important;
   }
+
+  /* Portfolio responsiveness on mobile */
+  .kfpl-portfolio-summary {
+    grid-template-columns: 1fr;
+  }
+  .kfpl-portfolio-grid {
+    grid-template-columns: 1fr;
+  }
+  .kfpl-portfolio-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .kfpl-portfolio-drawer-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  /* News & Media responsiveness on mobile */
+  .kfpl-nm-stats {
+    grid-template-columns: 1fr;
+  }
+  .kfpl-nm-form-layout {
+    grid-template-columns: 1fr;
+  }
+
+  /* Detail View responsiveness on mobile */
+  .kfpl-detail-kpis-summary {
+    grid-template-columns: 1fr;
+  }
+
+  /* Verification Modal details responsiveness on mobile */
+  .kfpl-verify-field-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .kfpl-verify-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .kfpl-approvals-modal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Tabs scroll on mobile */
+  .kfpl-tabs {
+    width: 100% !important;
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .kfpl-tab {
+    flex-shrink: 0;
+  }
 }
 
 /* ── Very small mobile (< 480px) ─────────────────────── */
@@ -344,6 +418,11 @@
 
   .kfpl-welcome-stats {
     display: none;
+  }
+
+  /* Portfolio responsiveness on small mobile */
+  .kfpl-portfolio-metrics {
+    grid-template-columns: 1fr;
   }
 }
 

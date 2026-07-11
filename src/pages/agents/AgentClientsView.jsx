@@ -108,8 +108,8 @@ export default function AgentClientsView() {
     },
     {
       header: 'ROI % Allocated',
-      accessor: 'roiPercentage',
-      render: (row) => `${row.roiPercentage}%`,
+      accessor: 'monthlyRoi',
+      render: (row) => `${row.monthlyRoi || row.roiPercentage || 1.2}%`,
     },
     {
       header: 'Perks',

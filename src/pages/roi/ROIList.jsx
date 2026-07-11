@@ -34,8 +34,8 @@ export default function ROIList() {
   const [markPaidForm, setMarkPaidForm] = useState({ paymentMode: 'Bank Transfer', transactionRefId: '' });
 
   // Live database dropdown lists
-  const [dbClients, setDbClients] = useState(investors);
-  const [dbAgents, setDbAgents] = useState(agents);
+  const [dbClients, setDbClients] = useState([]);
+  const [dbAgents, setDbAgents] = useState([]);
 
   // Record Payout Confirmation Modal
   const [showRecordPayoutConfirmModal, setShowRecordPayoutConfirmModal] = useState(false);
@@ -105,20 +105,26 @@ export default function ROIList() {
         let name = '';
         let idInternal = '';
         if (type === 'client') {
-          const inv = investors.find(i => i.clientId.toUpperCase() === recipientId);
+          const inv = dbClients.find(i => {
+            const code = i.clientCode || i.clientId || (i.profile && i.profile.clientCode) || (i.user && i.user.clientCode) || '';
+            return code.toUpperCase() === recipientId.toUpperCase();
+          });
           if (!inv) {
             errors.push(`Client ID '${recipientId}' not found.`);
           } else {
-            name = inv.name;
-            idInternal = inv.id;
+            name = inv.fullName || (inv.profile && inv.profile.fullName) || (inv.user && inv.user.name) || inv.name || '';
+            idInternal = inv.id || inv._id;
           }
         } else if (type === 'agent') {
-          const agt = agents.find(a => a.agentId.toUpperCase() === recipientId);
+          const agt = dbAgents.find(a => {
+            const code = (a.user && a.user.clientCode) || (a.profile && a.profile.agentId) || a.agentId || '';
+            return code.toUpperCase() === recipientId.toUpperCase();
+          });
           if (!agt) {
             errors.push(`Agent ID '${recipientId}' not found.`);
           } else {
-            name = agt.name;
-            idInternal = agt.id;
+            name = (agt.profile && agt.profile.fullName) || (agt.user && agt.user.name) || agt.name || '';
+            idInternal = agt.id || agt._id;
           }
         }
 
@@ -222,6 +228,7 @@ export default function ROIList() {
   const [isAmountEditable, setIsAmountEditable] = useState(false);
   const [showPayoutWarningModal, setShowPayoutWarningModal] = useState(false);
   const [showPayoutConfirmModal, setShowPayoutConfirmModal] = useState(false);
+  const [showClearAllConfirmModal, setShowClearAllConfirmModal] = useState(false);
   
   // Form fields
   const [selectedClientId, setSelectedClientId] = useState('');
@@ -251,13 +258,19 @@ export default function ROIList() {
         unified = data.list;
       }
 
-      const clientsList = unified.filter(r => r.recipientType === 'Client Return (ROI)' || r.recordType?.toLowerCase() === 'client' || r.type === 'client');
-      const agentsList = unified.filter(r => r.recipientType === 'Agent Commission' || r.recordType?.toLowerCase() === 'agent' || r.type === 'agent');
+      const clientsList = unified.filter(r => {
+        const type = String(r.recipientType || r.recordType || r.type || '').toUpperCase();
+        return type === 'CLIENT' || type === 'CLIENT RETURN (ROI)';
+      });
+      const agentsList = unified.filter(r => {
+        const type = String(r.recipientType || r.recordType || r.type || '').toUpperCase();
+        return type === 'AGENT' || type === 'AGENT COMMISSION';
+      });
 
       setClientROI(clientsList.map(r => ({
         id: r.id || r._id,
-        investorName: r.investorName || r.name || '—',
-        clientId: r.clientId || r.subText || r.recipientId || '—',
+        investorName: r.recipientName || r.investorName || r.name || '—',
+        clientId: r.recipientCode || r.clientId || r.subText || r.recipientId || '—',
         investorId: r.investorId || r.idInternal || '',
         roiPercentage: r.roiPercentage || 12,
         month: r.month || r.period || '—',
@@ -270,8 +283,8 @@ export default function ROIList() {
 
       setAgentCommissions(agentsList.map(r => ({
         id: r.id || r._id,
-        agentName: r.agentName || r.name || '—',
-        agentId: r.agentId || r.subText || r.recipientId || '—',
+        agentName: r.recipientName || r.agentName || r.name || '—',
+        agentId: r.recipientCode || r.agentId || r.subText || r.recipientId || '—',
         idInternal: r.idInternal || '',
         type: r.commissionType || r.type || 'monthly',
         month: r.month || r.period || '—',
@@ -289,19 +302,50 @@ export default function ROIList() {
 
   const fetchDropdownData = async () => {
     try {
+      console.log("Fetching dropdown clients and agents...");
+      
       const clientRes = await apiRequest('/api/super-admin/clients');
-      const clientData = clientRes.data || clientRes;
-      const parsedClients = Array.isArray(clientRes) ? clientRes : (clientData.clients || clientData || []);
-      if (Array.isArray(parsedClients) && parsedClients.length > 0) {
-        setDbClients(parsedClients);
+      console.log("Raw Clients API Response:", clientRes);
+      
+      let parsedClients = [];
+      if (Array.isArray(clientRes)) {
+        parsedClients = clientRes;
+      } else if (clientRes.data) {
+        if (Array.isArray(clientRes.data)) {
+          parsedClients = clientRes.data;
+        } else if (clientRes.data.clients && Array.isArray(clientRes.data.clients)) {
+          parsedClients = clientRes.data.clients;
+        } else if (clientRes.data.data && Array.isArray(clientRes.data.data)) {
+          parsedClients = clientRes.data.data;
+        }
+      } else if (clientRes.clients && Array.isArray(clientRes.clients)) {
+        parsedClients = clientRes.clients;
       }
+      
+      console.log("Parsed Clients list:", parsedClients);
+      setDbClients(parsedClients);
 
       const agentRes = await apiRequest('/api/super-admin/agents');
-      const agentData = agentRes.data || agentRes;
-      const parsedAgents = Array.isArray(agentRes) ? agentRes : (agentData.agents || agentData || []);
-      if (Array.isArray(parsedAgents) && parsedAgents.length > 0) {
-        setDbAgents(parsedAgents);
+      console.log("Raw Agents API Response:", agentRes);
+      
+      let parsedAgents = [];
+      if (Array.isArray(agentRes)) {
+        parsedAgents = agentRes;
+      } else if (agentRes.data) {
+        if (Array.isArray(agentRes.data)) {
+          parsedAgents = agentRes.data;
+        } else if (agentRes.data.agents && Array.isArray(agentRes.data.agents)) {
+          parsedAgents = agentRes.data.agents;
+        } else if (agentRes.data.data && Array.isArray(agentRes.data.data)) {
+          parsedAgents = agentRes.data.data;
+        }
+      } else if (agentRes.agents && Array.isArray(agentRes.agents)) {
+        parsedAgents = agentRes.agents;
       }
+      
+      console.log("Parsed Agents list:", parsedAgents);
+      setDbAgents(parsedAgents);
+      
     } catch (err) {
       console.error("Failed to load drop-down clients/agents:", err);
     }
@@ -309,40 +353,6 @@ export default function ROIList() {
 
   useEffect(() => {
     fetchDropdownData();
-    // Also load fallback from local storage as initial state
-    const localROI = localStorage.getItem('kfpl_client_roi');
-    const localComm = localStorage.getItem('kfpl_agent_commissions');
-    if (localROI) {
-      setClientROI(JSON.parse(localROI));
-    } else {
-      const initialROI = investors.flatMap(inv =>
-        inv.roiHistory.map(roi => ({
-          ...roi,
-          investorName: inv.name,
-          clientId: inv.clientId,
-          investorId: inv.id,
-          roiPercentage: inv.roiPercentage,
-          paymentMode: 'Bank Transfer',
-          transactionRef: `TXN-ROI-${roi.id}`
-        }))
-      );
-      setClientROI(initialROI);
-    }
-    if (localComm) {
-      setAgentCommissions(JSON.parse(localComm));
-    } else {
-      const initialComm = agents.flatMap(agt =>
-        agt.commissionHistory.map(comm => ({
-          ...comm,
-          agentName: agt.name,
-          agentId: agt.agentId,
-          idInternal: agt.id,
-          paymentMode: 'Bank Transfer',
-          transactionRef: `TXN-COMM-${comm.id}`
-        }))
-      );
-      setAgentCommissions(initialComm);
-    }
   }, []);
 
   useEffect(() => {
@@ -363,9 +373,14 @@ export default function ROIList() {
   const handleClientChange = (id) => {
     setSelectedClientId(id);
     setIsAmountEditable(false);
-    const client = dbClients.find(c => String(c.id || c._id) === String(id));
+    const client = dbClients.find(c => {
+      const cid = c.user?._id || c.profile?.userId || c._id || c.id;
+      return String(cid) === String(id);
+    });
     if (client) {
-      const monthlyReturn = Math.round((client.totalInvestment * (client.roiPercentage || 1.2)) / 100);
+      const totalInv = client.totalInvestment || (client.profile && client.profile.totalPortfolioValue) || 0;
+      const roiPct = client.roiPercentage || (client.profile && client.profile.monthlyRoi) || 1.2;
+      const monthlyReturn = Math.round((totalInv * roiPct) / 100);
       setAmountPaid(monthlyReturn);
     } else {
       setAmountPaid('');
@@ -437,13 +452,31 @@ export default function ROIList() {
 
   const confirmRecordPayout = async () => {
     const amt = parseFloat(amountPaid);
+
+    const selectedClientObj = dbClients.find(c => {
+      const id = c.user?._id || c.profile?.userId || c._id || c.id;
+      return String(id) === String(selectedClientId);
+    });
+    
+    const selectedAgentObj = dbAgents.find(a => {
+      const id = a.user?._id || a.profile?.userId || a._id || a.id;
+      return String(id) === String(selectedAgentId);
+    });
+
+    const relatedClientObj = dbClients.find(c => {
+      const id = c.user?._id || c.profile?.userId || c._id || c.id;
+      return String(id) === String(relatedClientId);
+    });
+
     const payload = {
-      recipientType: recipientType === 'client' ? 'Client Return (ROI)' : 'Agent Commission',
+      recipientType: recipientType === 'client' ? 'CLIENT' : 'AGENT',
       recipientId: recipientType === 'client' 
-        ? dbClients.find(c => String(c.id || c._id) === String(selectedClientId))?.clientId || selectedClientId
-        : dbAgents.find(a => String(a.id || a._id) === String(selectedAgentId) || a.agentId === selectedAgentId)?.agentId || selectedAgentId,
+        ? (selectedClientObj?.user?._id || selectedClientObj?._id || selectedClientId)
+        : (selectedAgentObj?.user?._id || selectedAgentObj?._id || selectedAgentId),
       commissionType: recipientType === 'agent' ? commissionType : undefined,
-      clientId: recipientType === 'agent' ? dbClients.find(c => String(c.id || c._id) === String(relatedClientId))?.clientId : undefined,
+      clientId: recipientType === 'agent' && relatedClientId 
+        ? (relatedClientObj?.user?._id || relatedClientObj?._id || relatedClientId)
+        : undefined,
       amount: amt,
       payoutDate: payoutDate,
       paymentMode,
@@ -470,6 +503,20 @@ export default function ROIList() {
     }
   };
 
+  const handleClearAllPayouts = async () => {
+    try {
+      await apiRequest('/api/super-admin/roi/payouts/clear', {
+        method: 'DELETE'
+      });
+      addToast('All ROI payouts and agent commissions cleared successfully.', 'success', 'Data Cleared');
+      setShowClearAllConfirmModal(false);
+      fetchPayouts();
+    } catch (err) {
+      console.error(err);
+      addToast(err.message || 'Failed to clear data.', 'error', 'Error');
+    }
+  };
+
   // Combine lists for unified viewing
   const unifiedRecords = [
     ...clientROI.map(r => ({
@@ -486,7 +533,7 @@ export default function ROIList() {
       subText: c.agentId,
       payoutDetail: `Comm (${c.type})`
     }))
-  ].sort((a, b) => b.id - a.id);
+  ].sort((a, b) => String(b.id || '').localeCompare(String(a.id || '')));
 
   const uniquePaymentModes = Array.from(new Set(unifiedRecords.map(r => r.paymentMode).filter(Boolean)));
 
@@ -531,6 +578,15 @@ export default function ROIList() {
           </button>
           <button className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" onClick={() => setShowPayoutModal(true)}>
             + Record Payout
+          </button>
+          <button className="kfpl-btn kfpl-btn--danger kfpl-btn--sm" onClick={() => setShowClearAllConfirmModal(true)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px', marginRight: '6px' }}>
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+            Clear All Records
           </button>
         </div>
       </div>
@@ -686,27 +742,43 @@ export default function ROIList() {
                   onChange={(e) => handleClientChange(e.target.value)}
                 >
                   <option value="">Choose client</option>
-                  {dbClients.filter(i => i.status === 'active').map(inv => (
-                    <option key={inv.id || inv._id} value={inv.id || inv._id}>{inv.name} ({inv.clientId})</option>
-                  ))}
+                  {dbClients.filter(i => {
+                    const status = i.status || (i.header && i.header.status) || (i.profile && i.profile.status) || 'active';
+                    return status.toLowerCase() === 'active';
+                  }).map(inv => {
+                    const name = inv.fullName || (inv.profile && inv.profile.fullName) || (inv.user && inv.user.name) || inv.name || 'Unknown Client';
+                    const code = inv.clientCode || inv.clientId || (inv.profile && inv.profile.clientCode) || (inv.user && inv.user.clientCode) || '';
+                    const id = inv.user?._id || inv.profile?.userId || inv._id || inv.id;
+                    return (
+                      <option key={id} value={id}>
+                        {name} {code ? `(${code})` : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
               {selectedClientId && (
                 (() => {
-                  const client = dbClients.find(c => String(c.id || c._id) === String(selectedClientId));
-                  return client ? (
+                  const client = dbClients.find(c => {
+                    const id = c.user?._id || c.profile?.userId || c._id || c.id;
+                    return String(id) === String(selectedClientId);
+                  });
+                  if (!client) return null;
+                  const totalInv = client.totalInvestment || (client.summaryCards && client.summaryCards.totalInvestment) || (client.profile && client.profile.totalPortfolioValue) || 0;
+                  const roiPct = client.roiPercentage || (client.profile && client.profile.roiPercentage) || 12;
+                  return (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: 'var(--color-surface)', padding: '12px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
                       <div>
                         <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block' }}>Investment Amount</span>
-                        <strong style={{ fontSize: '0.875rem' }}>{formatCurrency(client.totalInvestment)}</strong>
+                        <strong style={{ fontSize: '0.875rem' }}>{formatCurrency(totalInv)}</strong>
                       </div>
                       <div>
                         <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block' }}>Allocated ROI %</span>
-                        <strong style={{ fontSize: '0.875rem' }}>{client.roiPercentage || 12}%</strong>
+                        <strong style={{ fontSize: '0.875rem' }}>{roiPct}%</strong>
                       </div>
                     </div>
-                  ) : null;
+                  );
                 })()
               )}
             </>
@@ -723,9 +795,19 @@ export default function ROIList() {
                   onChange={(e) => handleAgentChange(e.target.value)}
                 >
                   <option value="">Choose agent</option>
-                  {dbAgents.filter(a => a.status === 'active').map(agt => (
-                    <option key={agt.id || agt._id} value={agt.id || agt._id}>{agt.name} ({agt.agentId})</option>
-                  ))}
+                  {dbAgents.filter(a => {
+                    const status = (a.profile && a.profile.status) || (a.user && (a.user.isActive ? 'active' : 'inactive')) || a.status || 'active';
+                    return status.toLowerCase() === 'active';
+                  }).map(agt => {
+                    const name = (agt.profile && agt.profile.fullName) || (agt.user && agt.user.name) || agt.name || 'Unknown Agent';
+                    const code = (agt.user && agt.user.clientCode) || (agt.profile && agt.profile.agentId) || agt.agentId || '';
+                    const id = agt.user?._id || agt.profile?.userId || agt._id || agt.id;
+                    return (
+                      <option key={id} value={id}>
+                        {name} {code ? `(${code})` : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -751,9 +833,13 @@ export default function ROIList() {
                       onChange={(e) => setRelatedClientId(e.target.value)}
                     >
                       <option value="">Choose client</option>
-                      {dbClients.map(inv => (
-                        <option key={inv.id || inv._id} value={inv.id || inv._id}>{inv.name}</option>
-                      ))}
+                      {dbClients.map(inv => {
+                        const name = inv.fullName || (inv.profile && inv.profile.fullName) || (inv.user && inv.user.name) || inv.name || 'Unknown Client';
+                        const id = inv.user?._id || inv.profile?.userId || inv._id || inv.id;
+                        return (
+                          <option key={id} value={id}>{name}</option>
+                        );
+                      })}
                     </select>
                   </div>
                 </div>
@@ -1161,12 +1247,22 @@ export default function ROIList() {
                 <strong style={{ fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   {recipientType === 'client' 
                     ? (() => {
-                        const client = dbClients.find(c => String(c.id || c._id) === String(selectedClientId));
-                        return client ? `${client.name} (${client.clientId})` : selectedClientId;
+                        const client = dbClients.find(c => {
+                          const id = c.user?._id || c.profile?.userId || c._id || c.id;
+                          return String(id) === String(selectedClientId);
+                        });
+                        const name = client ? (client.fullName || client.profile?.fullName || client.user?.name || client.name) : '';
+                        const code = client ? (client.clientCode || client.clientId || client.profile?.clientCode || client.user?.clientCode) : '';
+                        return client ? `${name} (${code})` : selectedClientId;
                       })()
                     : (() => {
-                        const agent = dbAgents.find(a => String(a.id || a._id) === String(selectedAgentId));
-                        return agent ? `${agent.name} (${agent.agentId})` : selectedAgentId;
+                        const agent = dbAgents.find(a => {
+                          const id = a.user?._id || a.profile?.userId || a._id || a.id;
+                          return String(id) === String(selectedAgentId);
+                        });
+                        const name = agent ? (agent.profile?.fullName || agent.user?.name || agent.name) : '';
+                        const code = agent ? (agent.user?.clientCode || agent.profile?.agentId || agent.agentId) : '';
+                        return agent ? `${name} (${code})` : selectedAgentId;
                       })()
                   }
                 </strong>
@@ -1201,6 +1297,47 @@ export default function ROIList() {
               </div>
             </div>
 
+          </div>
+        </div>
+      </Modal>
+
+      {/* Confirm Clear All Records Modal */}
+      <Modal
+        isOpen={showClearAllConfirmModal}
+        onClose={() => setShowClearAllConfirmModal(false)}
+        title="Confirm Data Deletion"
+        footer={
+          <>
+            <button 
+              className="kfpl-btn kfpl-btn--ghost" 
+              onClick={() => setShowClearAllConfirmModal(false)}
+            >
+              Cancel
+            </button>
+            <button 
+              className="kfpl-btn kfpl-btn--danger" 
+              onClick={handleClearAllPayouts}
+            >
+              Yes, Clear All Data
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'start', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px 16px', borderRadius: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', flexShrink: 0 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </div>
+            <div>
+              <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#EF4444' }}>Danger: Permanent Deletion</h4>
+              <p style={{ margin: '2px 0 0', fontSize: '0.8125rem', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
+                You are about to delete **all Return on Investment (ROI) payouts and Agent commissions** from the system. This action is irreversible and cannot be undone.
+              </p>
+            </div>
           </div>
         </div>
       </Modal>

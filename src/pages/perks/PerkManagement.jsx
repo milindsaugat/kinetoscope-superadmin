@@ -553,7 +553,8 @@ export default function PerkManagement() {
 
           {/* Assigned Perks Table */}
           <div className="kfpl-table-container">
-            <table className="kfpl-table">
+            <div className="kfpl-table-scroll">
+              <table className="kfpl-table">
               <thead>
                 <tr>
                   <th>#</th>
@@ -614,7 +615,8 @@ export default function PerkManagement() {
                   })
                 )}
               </tbody>
-            </table>
+              </table>
+            </div>
           </div>
         </>
       )}

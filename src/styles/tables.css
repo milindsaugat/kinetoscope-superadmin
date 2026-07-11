@@ -50,12 +50,25 @@
 .kfpl-table-scroll {
   width: 100%;
   overflow-x: auto;
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -webkit-overflow-scrolling: touch;
 }
 
 .kfpl-table-scroll::-webkit-scrollbar {
-  display: none;
+  height: 6px;
+}
+
+.kfpl-table-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 3px;
+}
+
+.kfpl-table-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+.kfpl-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gold);
 }
 
 /* ── Table Element ─────────────────────── */

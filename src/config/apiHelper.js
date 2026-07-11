@@ -32,9 +32,14 @@ export async function apiRequest(path, options = {}) {
     ...options.headers,
   };
 
-  // Don't set Content-Type for FormData (browser sets boundary automatically)
-  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
-    headers['Content-Type'] = 'application/json';
+  // Automatically stringify object body payloads and set JSON content type
+  if (options.body && !(options.body instanceof FormData)) {
+    if (!headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+    if (typeof options.body === 'object') {
+      options.body = JSON.stringify(options.body);
+    }
   }
 
   const response = await fetch(url, {
@@ -42,7 +47,18 @@ export async function apiRequest(path, options = {}) {
     headers,
   });
 
-  const data = await response.json();
+  const text = await response.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch (parseErr) {
+    console.error('Failed to parse response JSON:', parseErr, 'Raw text:', text);
+    const errorMessage = text || `Request failed with status ${response.status}`;
+    const err = new Error(errorMessage);
+    err.status = response.status;
+    err.data = text;
+    throw err;
+  }
 
   if (!response.ok) {
     const errorMessage = data.message || data.error || `Request failed with status ${response.status}`;

@@ -140,13 +140,20 @@ export default function ApprovalsQueue() {
         id: item.id || item._id,
         type: type,
         investorName: item.investorName || item.investor?.name || '—',
-        clientId: item.clientId || item.investor?.clientId || '—',
+        clientId: item.clientCode || (item.clientId && typeof item.clientId === 'object' ? item.clientId.clientCode : item.clientId) || item.investor?.clientId || '—',
         amount: Number(item.amount || 0),
-        date: item.date || item.createdAt || new Date().toISOString().split('T')[0],
+        date: item.createdAt ? new Date(item.createdAt).toLocaleString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        }) : (item.date || '—'),
         status: (item.status || 'pending').toLowerCase(),
         mode: item.paymentMethod || item.mode || 'Bank Transfer',
         referenceId: item.referenceNumber || item.referenceId || '',
-        proofFile: item.proofFile || item.fileUrl || '',
+        proofFile: item.proofAttachment || item.proofFile || item.fileUrl || '',
         bankName: item.bankName || 'HDFC Bank',
         accountNo: item.accountNo || 'XXXX4567',
         ifsc: item.ifsc || 'HDFC0001234',
@@ -174,21 +181,14 @@ export default function ApprovalsQueue() {
 
     } catch (err) {
       console.error('Failed to fetch approvals:', err);
-      // Fallback
-      setDepositsList(approvals.deposits);
-      setWithdrawalsList(approvals.withdrawals);
-      
-      const pendingDep = approvals.deposits.filter(i => i.status === 'pending').length;
-      const pendingWith = approvals.withdrawals.filter(i => i.status === 'pending').length;
-      const pendingDepVal = approvals.deposits.filter(i => i.status === 'pending').reduce((sum, item) => sum + item.amount, 0);
-      const pendingWithVal = approvals.withdrawals.filter(i => i.status === 'pending').reduce((sum, item) => sum + item.amount, 0);
-
+      setDepositsList([]);
+      setWithdrawalsList([]);
       setStats({
-        totalPending: pendingDep + pendingWith,
-        pendingDeposits: pendingDep,
-        pendingDepositsVal: pendingDepVal,
-        pendingWithdrawals: pendingWith,
-        pendingWithdrawalsVal: pendingWithVal
+        totalPending: 0,
+        pendingDeposits: 0,
+        pendingDepositsVal: 0,
+        pendingWithdrawals: 0,
+        pendingWithdrawalsVal: 0
       });
     } finally {
       setLoading(false);
@@ -234,7 +234,7 @@ export default function ApprovalsQueue() {
       await apiRequest(`/api/super-admin/transactions/${item.id || item._id}/action`, {
         method: 'PATCH',
         body: {
-          status: 'APPROVED',
+          status: 'approved',
           rejectionReason: adminNote || 'Verified bank ledger statement'
         }
       });
@@ -257,7 +257,7 @@ export default function ApprovalsQueue() {
       await apiRequest(`/api/super-admin/transactions/${item.id || item._id}/action`, {
         method: 'PATCH',
         body: {
-          status: 'REJECTED',
+          status: 'rejected',
           rejectionReason: rejectReason.trim()
         }
       });
@@ -419,7 +419,7 @@ export default function ApprovalsQueue() {
         title={`Verify ${modal.item ? (modal.item.type === 'deposit' ? 'Deposit' : 'Withdrawal') : 'Transaction'} Request`}
         footer={
           modal.item && modal.item.status === 'pending' ? (
-            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '10px' }}>
               <div>
                 {!showRejectForm ? (
                   <button className="kfpl-btn kfpl-btn--danger" onClick={() => setShowRejectForm(true)}>
@@ -450,12 +450,23 @@ export default function ApprovalsQueue() {
         }
       >
         {modal.item && (() => {
-          const investorObj = selectedRequestDetails?.investorProfile || selectedRequestDetails || investors.find(i => i.clientId === modal.item.clientId) || {};
+          const investorObj = selectedRequestDetails
+            ? {
+                ...selectedRequestDetails.profile,
+                email: selectedRequestDetails.transaction?.investorEmail || selectedRequestDetails.profile?.email,
+                investorEmail: selectedRequestDetails.transaction?.investorEmail || selectedRequestDetails.profile?.email,
+                pan: selectedRequestDetails.profile?.panNumber,
+                category: selectedRequestDetails.profile?.tier || 'silver',
+              }
+            : (investors.find(i => i.clientId === modal.item.clientId) || {});
+          const resolvedBankName = selectedRequestDetails?.profile?.bankName || selectedRequestDetails?.transaction?.bankName || modal.item.bankName || '—';
+          const resolvedAccountNo = selectedRequestDetails?.profile?.accountNumber || selectedRequestDetails?.profile?.accountNo || selectedRequestDetails?.transaction?.accountNo || modal.item.accountNo || '—';
+          const resolvedIfsc = selectedRequestDetails?.profile?.ifscCode || selectedRequestDetails?.profile?.ifsc || selectedRequestDetails?.transaction?.ifsc || modal.item.ifsc || '—';
           const tier = investorObj.category || 'silver';
           const initials = modal.item.investorName ? modal.item.investorName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'IN';
           
           return (
-            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px', overflowX: 'hidden' }}>
               
               {/* 1. Hero strip */}
               <div className="kfpl-verify-hero">
@@ -561,11 +572,11 @@ export default function ApprovalsQueue() {
                         <div className="kfpl-verify-field-row">
                           <div className="kfpl-verify-field" style={{ textAlign: 'left' }}>
                             <span className="kfpl-verify-field-label">Target Bank</span>
-                            <span className="kfpl-verify-field-value">{modal.item.bankName || '—'}</span>
+                            <span className="kfpl-verify-field-value">{resolvedBankName}</span>
                           </div>
                           <div className="kfpl-verify-field" style={{ textAlign: 'left' }}>
                             <span className="kfpl-verify-field-label">IFSC Code</span>
-                            <span className="kfpl-verify-field-value" style={{ fontFamily: 'monospace' }}>{modal.item.ifsc || '—'}</span>
+                            <span className="kfpl-verify-field-value" style={{ fontFamily: 'monospace' }}>{resolvedIfsc}</span>
                           </div>
                         </div>
                       )}
@@ -584,25 +595,42 @@ export default function ApprovalsQueue() {
                 </div>
 
                 {/* Right Column: Verification Action Proof (Deposits) or Target Account details (Withdrawals) */}
-                <div>
-                  {modal.item.type === 'deposit' ? (
-                    <div className="kfpl-verify-card" style={{ height: '100%' }}>
+                {modal.item.type === 'deposit' ? (
+                  <div className="kfpl-verify-card" style={{ height: '100%' }}>
                       <div className="kfpl-verify-card-header">
                         <span>Proof of Deposit Attachment</span>
                       </div>
                       <div className="kfpl-verify-card-body">
                         {(() => {
-                          const file = modal.item.proofFile && typeof modal.item.proofFile === 'object'
-                            ? modal.item.proofFile
-                            : {
-                                name: `bank_statement_receipt_${modal.item.clientId}_${modal.item.id}.pdf`,
-                                type: 'application/pdf',
-                                size: '420 KB',
-                                data: modal.item.proofFile || ''
-                              };
+                           const fileUrl = typeof modal.item.proofFile === 'string' ? modal.item.proofFile : (modal.item.proofFile?.data || '');
+                           const isImageUrl = (url) => {
+                             if (!url || typeof url !== 'string') return false;
+                             const cleanUrl = url.toLowerCase().split('?')[0];
+                             return cleanUrl.endsWith('.jpg') || 
+                                    cleanUrl.endsWith('.jpeg') || 
+                                    cleanUrl.endsWith('.png') || 
+                                    cleanUrl.endsWith('.webp') || 
+                                    cleanUrl.endsWith('.gif');
+                           };
+                           const isPdfUrl = (url) => {
+                             if (!url || typeof url !== 'string') return false;
+                             const cleanUrl = url.toLowerCase().split('?')[0];
+                             return cleanUrl.endsWith('.pdf');
+                           };
+
+                           const file = modal.item.proofFile && typeof modal.item.proofFile === 'object'
+                             ? modal.item.proofFile
+                             : {
+                                 name: isImageUrl(fileUrl) 
+                                   ? `deposit_receipt_${modal.item.clientId}_${modal.item.id}.png` 
+                                   : `bank_statement_receipt_${modal.item.clientId}_${modal.item.id}.pdf`,
+                                 type: isImageUrl(fileUrl) ? 'image/png' : 'application/pdf',
+                                 size: '420 KB',
+                                 data: fileUrl
+                               };
 
                           const isImage = file.type && file.type.startsWith('image/');
-                          const isPdf = file.name && file.name.endsWith('.pdf');
+                          const isPdf = isPdfUrl(file.data) || (file.name && file.name.endsWith('.pdf'));
                           const fileColor = isPdf ? '#ef4444' : (isImage ? '#10b981' : '#2563eb');
 
                           return (
@@ -669,6 +697,28 @@ export default function ApprovalsQueue() {
                                     src={file.data} 
                                     alt="Proof Attachment" 
                                     style={{ maxWidth: '100%', maxHeight: '220px', borderRadius: '4px', objectFit: 'contain' }} 
+                                  />
+                                </div>
+                              ) : isPdf && file.data ? (
+                                <div style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  padding: '12px',
+                                  background: '#f1f5f9',
+                                  borderRadius: '8px',
+                                  border: '1px solid #cbd5e1',
+                                  flexGrow: 1,
+                                  justifyContent: 'center',
+                                  height: '240px',
+                                  width: '100%'
+                                }}>
+                                  <iframe 
+                                    src={file.data} 
+                                    title="PDF Preview"
+                                    width="100%" 
+                                    height="100%" 
+                                    style={{ border: 'none', borderRadius: '4px' }}
                                   />
                                 </div>
                               ) : (
@@ -769,14 +819,14 @@ export default function ApprovalsQueue() {
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div style={{ textAlign: 'left' }}>
                               <span style={{ fontSize: '0.625rem', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.05em', fontWeight: 600 }}>Recipient Bank</span>
-                              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', marginTop: '2px' }}>{modal.item.bankName || '—'}</div>
+                              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', marginTop: '2px' }}>{resolvedBankName}</div>
                             </div>
                             <div className="kfpl-verify-bank-card-chip" />
                           </div>
                           
                           <div className="kfpl-verify-bank-card-number">
-                            {modal.item.accountNo 
-                              ? modal.item.accountNo.replace(/\d(?=\d{4})/g, "•") 
+                            {resolvedAccountNo !== '—'
+                              ? resolvedAccountNo.replace(/\d(?=\d{4})/g, "•") 
                               : "•••• •••• •••• ••••"}
                           </div>
                           
@@ -787,7 +837,7 @@ export default function ApprovalsQueue() {
                             </div>
                             <div className="kfpl-verify-bank-card-info" style={{ textAlign: 'right' }}>
                               <span className="kfpl-verify-bank-card-lbl">IFSC Code</span>
-                              <span className="kfpl-verify-bank-card-val" style={{ fontFamily: 'monospace' }}>{modal.item.ifsc || '—'}</span>
+                              <span className="kfpl-verify-bank-card-val" style={{ fontFamily: 'monospace' }}>{resolvedIfsc}</span>
                             </div>
                           </div>
                         </div>
@@ -809,7 +859,6 @@ export default function ApprovalsQueue() {
                       </div>
                     </div>
                   )}
-                </div>
 
               </div>
 

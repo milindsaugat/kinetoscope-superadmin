@@ -185,7 +185,7 @@ export default function NewsMediaList() {
 
       {/* Articles Table */}
       <div className="kfpl-card">
-        <div className="kfpl-table-responsive">
+        <div className="kfpl-table-scroll">
           <table className="kfpl-table">
             <thead>
               <tr>
