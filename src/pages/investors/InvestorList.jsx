@@ -6,10 +6,12 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import DataTable from '../../components/ui/DataTable';
 import Badge from '../../components/ui/Badge';
 import { formatCurrency, getCategoryFromAmount, investors } from '../../data/mockData';
 import { apiRequest } from '../../config/apiHelper';
+import { useToast } from '../../components/ui/Toast';
 
 export default function InvestorList() {
   const navigate = useNavigate();
@@ -33,6 +35,48 @@ export default function InvestorList() {
 
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { addToast } = useToast();
+  const [renderTrigger, setRenderTrigger] = useState(0);
+
+  // Deletion states
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteClientId, setDeleteClientId] = useState(null);
+  const [showClearAllModal, setShowClearAllModal] = useState(false);
+
+  const handleDeleteClientClick = (id) => {
+    setDeleteClientId(id);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteClient = async () => {
+    if (!deleteClientId) return;
+    try {
+      await apiRequest(`/api/super-admin/clients/${deleteClientId}`, {
+        method: 'DELETE'
+      });
+      addToast('Client deleted successfully.', 'success', 'Deleted');
+      setShowDeleteModal(false);
+      setDeleteClientId(null);
+      setRenderTrigger(prev => prev + 1);
+    } catch (err) {
+      console.error('Failed to delete client:', err);
+      addToast(err.message || 'Failed to delete client.', 'error', 'Error');
+    }
+  };
+
+  const handleClearAllClients = async () => {
+    try {
+      await apiRequest('/api/super-admin/clients/clear', {
+        method: 'DELETE'
+      });
+      addToast('All client profiles cleared successfully.', 'success', 'Data Cleared');
+      setShowClearAllModal(false);
+      setRenderTrigger(prev => prev + 1);
+    } catch (err) {
+      console.error('Failed to clear clients:', err);
+      addToast(err.message || 'Failed to clear clients.', 'error', 'Error');
+    }
+  };
 
   useEffect(() => {
     const fetchClients = async () => {
@@ -120,7 +164,7 @@ export default function InvestorList() {
       }
     };
     fetchClients();
-  }, []);
+  }, [renderTrigger]);
 
   const getPerkTier = (amount) => {
     return getCategoryFromAmount(amount);
@@ -251,6 +295,25 @@ export default function InvestorList() {
         return <Badge status={status}>{status}</Badge>;
       },
     },
+    {
+      header: 'Actions',
+      render: (row) => (
+        <button
+          className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
+          style={{ padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-danger)' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDeleteClientClick(row._id || row.id);
+          }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" width="12" height="12">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          Delete
+        </button>
+      )
+    }
   ];
 
   if (loading) {
@@ -332,6 +395,17 @@ export default function InvestorList() {
             </svg>
             Add Client
           </button>
+          <button 
+            className="kfpl-btn kfpl-btn--danger kfpl-btn--sm" 
+            onClick={() => setShowClearAllModal(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            Clear All Clients
+          </button>
         </div>
       </div>
 
@@ -341,6 +415,110 @@ export default function InvestorList() {
         onRowClick={(row) => navigate(`/investors/${row._id || row.id}`)}
         searchPlaceholder="Search clients by name, email, ID..."
       />
+      {showDeleteModal && createPortal(
+        <div
+          className="kfpl-modal-overlay"
+          onClick={() => {
+            setShowDeleteModal(false);
+            setDeleteClientId(null);
+          }}
+        >
+          <div
+            className="kfpl-modal"
+            style={{ maxWidth: '440px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="kfpl-modal-header">
+              <h3 className="kfpl-modal-title">Delete Client</h3>
+              <button className="kfpl-modal-close" onClick={() => {
+                setShowDeleteModal(false);
+                setDeleteClientId(null);
+              }} aria-label="Close modal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="kfpl-modal-body" style={{ padding: '20px 24px' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'start', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px 16px', borderRadius: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', flexShrink: 0 }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#EF4444' }}>Danger: Permanent Deletion</h4>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.8125rem', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
+                    Are you sure you want to delete this client? This action will permanently remove the client and cannot be undone.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="kfpl-modal-footer">
+              <button
+                className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeleteClientId(null);
+                }}
+              >Cancel</button>
+              <button
+                className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
+                onClick={confirmDeleteClient}
+              >Confirm Delete</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {showClearAllModal && createPortal(
+        <div
+          className="kfpl-modal-overlay"
+          onClick={() => setShowClearAllModal(false)}
+        >
+          <div
+            className="kfpl-modal"
+            style={{ maxWidth: '440px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="kfpl-modal-header">
+              <h3 className="kfpl-modal-title">Confirm Data Deletion</h3>
+              <button className="kfpl-modal-close" onClick={() => setShowClearAllModal(false)} aria-label="Close modal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="kfpl-modal-body" style={{ padding: '20px 24px' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'start', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px 16px', borderRadius: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', flexShrink: 0 }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#EF4444' }}>Danger: Permanent Deletion</h4>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.8125rem', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
+                    You are about to delete **all client profiles** from the system. This action is irreversible and cannot be undone.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="kfpl-modal-footer">
+              <button
+                className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm"
+                onClick={() => setShowClearAllModal(false)}
+              >Cancel</button>
+              <button
+                className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
+                onClick={handleClearAllClients}
+              >Yes, Clear All Data</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
