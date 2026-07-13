@@ -58,6 +58,9 @@ export default function InvestmentList() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteInvestmentId, setDeleteInvestmentId] = useState(null);
 
+  // Clear all investments state
+  const [showClearAllModal, setShowClearAllModal] = useState(false);
+
   const handleDeleteInvestmentClick = (id) => {
     setDeleteInvestmentId(id);
     setShowDeleteModal(true);
@@ -76,6 +79,20 @@ export default function InvestmentList() {
     } catch (err) {
       console.error('Failed to delete investment:', err);
       addToast(err.message || 'Failed to delete investment.', 'error', 'Error');
+    }
+  };
+
+  const handleClearAllInvestments = async () => {
+    try {
+      await apiRequest('/api/super-admin/investments', {
+        method: 'DELETE'
+      });
+      addToast('All investments cleared successfully.', 'success', 'Data Cleared');
+      setShowClearAllModal(false);
+      setRenderTrigger(prev => prev + 1);
+    } catch (err) {
+      console.error('Failed to clear investments:', err);
+      addToast(err.message || 'Failed to clear investments.', 'error', 'Error');
     }
   };
 
@@ -309,6 +326,18 @@ export default function InvestmentList() {
             </svg>
             Assign Investment
           </button>
+
+          <button 
+            className="kfpl-btn kfpl-btn--danger kfpl-btn--sm" 
+            onClick={() => setShowClearAllModal(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            Clear All Investments
+          </button>
         </div>
       </div>
 
@@ -435,6 +464,54 @@ export default function InvestmentList() {
                 className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
                 onClick={confirmDeleteInvestment}
               >Confirm Delete</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {showClearAllModal && createPortal(
+        <div
+          className="kfpl-modal-overlay"
+          onClick={() => setShowClearAllModal(false)}
+        >
+          <div
+            className="kfpl-modal"
+            style={{ maxWidth: '440px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="kfpl-modal-header">
+              <h3 className="kfpl-modal-title">Confirm Data Deletion</h3>
+              <button className="kfpl-modal-close" onClick={() => setShowClearAllModal(false)} aria-label="Close modal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="kfpl-modal-body" style={{ padding: '20px 24px' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'start', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px 16px', borderRadius: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', flexShrink: 0 }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#EF4444' }}>Danger: Permanent Deletion</h4>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.8125rem', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
+                    You are about to delete **all client and agent investments** from the system. This action is irreversible and cannot be undone.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="kfpl-modal-footer">
+              <button
+                className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm"
+                onClick={() => setShowClearAllModal(false)}
+              >Cancel</button>
+              <button
+                className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
+                onClick={handleClearAllInvestments}
+              >Yes, Clear All Data</button>
             </div>
           </div>
         </div>,
