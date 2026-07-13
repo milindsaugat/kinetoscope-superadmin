@@ -114,7 +114,82 @@ export default function AssignInvestment() {
   }, []);
 
   const handleChange = (e) => {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
+
+    // Auto-fill ROI and Contract Period when client is selected
+    if (name === 'clientId' && value) {
+      const selectedClient = clients.find(c => {
+        const cId = c.user?._id || c.user?.id || c._id || c.id;
+        return String(cId) === String(value);
+      });
+      if (selectedClient) {
+        const clientRoi = selectedClient.monthlyRoi || 
+                          selectedClient.summaryCards?.monthlyRoi || 
+                          selectedClient.profile?.monthlyRoi || 
+                          selectedClient.roiPercentage || 
+                          selectedClient.profile?.roiPercentage || '';
+        
+        // Try direct contractPeriod field first
+        const p = selectedClient.profile || {};
+        const h = selectedClient.header || {};
+        const s = selectedClient.summaryCards || {};
+        const u = (selectedClient.userId && typeof selectedClient.userId === 'object' ? selectedClient.userId : null) || 
+                  (selectedClient.user && typeof selectedClient.user === 'object' ? selectedClient.user : null) || {};
+        
+        let clientPeriod = selectedClient.contractPeriod || selectedClient.durationMonths || 
+                           p.contractPeriod || p.durationMonths || 
+                           h.contractPeriod || h.durationMonths ||
+                           s.contractPeriod || s.durationMonths ||
+                           u.contractPeriod || u.durationMonths || '';
+        
+        // If not found, calculate from contractStartDate and contractEndDate
+        if (!clientPeriod) {
+          const startStr = selectedClient.contractStartDate || p.contractStartDate || h.contractStartDate ||
+                           selectedClient.joinDate || p.joinDate || selectedClient.createdAt || p.createdAt || '';
+          const endStr = selectedClient.contractEndDate || p.contractEndDate || h.contractEndDate ||
+                         selectedClient.extendContractDate || p.extendContractDate || 
+                         selectedClient.contractExtendedDate || p.contractExtendedDate || '';
+          if (startStr && endStr) {
+            const sd = new Date(startStr);
+            const ed = new Date(endStr);
+            if (!isNaN(sd.getTime()) && !isNaN(ed.getTime())) {
+              const months = (ed.getFullYear() - sd.getFullYear()) * 12 + (ed.getMonth() - sd.getMonth());
+              if (months > 0) {
+                clientPeriod = months;
+              }
+            }
+          }
+        }
+        
+        // Final fallback: scan all keys for anything matching "period" or "duration"
+        if (!clientPeriod) {
+          const allKeys = Object.keys(selectedClient);
+          for (const key of allKeys) {
+            const lk = key.toLowerCase();
+            if ((lk.includes('period') || lk.includes('duration') || lk.includes('tenure') || lk.includes('month')) && typeof selectedClient[key] === 'number') {
+              clientPeriod = selectedClient[key];
+              break;
+            }
+          }
+        }
+
+        const updates = { clientId: value };
+        const autoFilled = [];
+        if (clientRoi) {
+          updates.roi = String(clientRoi);
+          autoFilled.push(`ROI ${clientRoi}%`);
+        }
+        if (clientPeriod) {
+          updates.contractPeriod = String(clientPeriod);
+          autoFilled.push(`Contract ${clientPeriod} months`);
+        }
+        if (autoFilled.length > 0) {
+          setForm(prev => ({ ...prev, ...updates }));
+          addToast(`${autoFilled.join(', ')} auto-filled from client profile`, 'info', 'Auto-Filled');
+        }
+      }
+    }
   };
 
   const getClientName = (client) => {
@@ -336,22 +411,22 @@ export default function AssignInvestment() {
             <div className="kfpl-form-row-3">
               <div className="kfpl-input-group">
                 <label className="kfpl-input-label">Amount (₹) <span className="required">*</span></label>
-                <input className="kfpl-input" name="amount" type="number" value={form.amount} onChange={handleChange} placeholder="Enter amount" required />
+                <input className="kfpl-input" name="amount" type="number" value={form.amount} onChange={handleChange} onWheel={(e) => e.target.blur()} placeholder="Enter amount" required />
               </div>
               <div className="kfpl-input-group">
                 <label className="kfpl-input-label">ROI % <span className="required">*</span></label>
-                <input className="kfpl-input" name="roi" type="number" step="0.1" value={form.roi} onChange={handleChange} placeholder="e.g. 12" required />
+                <input className="kfpl-input" name="roi" type="number" step="0.1" value={form.roi} onChange={handleChange} onWheel={(e) => e.target.blur()} placeholder="e.g. 12" required />
               </div>
               <div className="kfpl-input-group">
                 <label className="kfpl-input-label">Contract Period (months)</label>
-                <input className="kfpl-input" name="contractPeriod" type="number" value={form.contractPeriod} onChange={handleChange} placeholder="e.g. 24" />
+                <input className="kfpl-input" name="contractPeriod" type="number" value={form.contractPeriod} onChange={handleChange} onWheel={(e) => e.target.blur()} placeholder="e.g. 24" />
               </div>
             </div>
 
             <div className="kfpl-form-row">
               <div className="kfpl-input-group">
                 <label className="kfpl-input-label">Risk Percentage (%)</label>
-                <input className="kfpl-input" name="riskPercentage" type="number" step="1" min="0" max="100" value={form.riskPercentage} onChange={handleChange} placeholder="e.g. 30" />
+                <input className="kfpl-input" name="riskPercentage" type="number" step="1" min="0" max="100" value={form.riskPercentage} onChange={handleChange} onWheel={(e) => e.target.blur()} placeholder="e.g. 30" />
               </div>
               <div className="kfpl-input-group">
                 <label className="kfpl-input-label">Risk Level</label>
@@ -410,6 +485,7 @@ export default function AssignInvestment() {
                             className="kfpl-input"
                             value={allocations[seg.id] ?? ''}
                             onChange={(e) => handleAllocationChange(seg.id, e.target.value)}
+                            onWheel={(e) => e.target.blur()}
                             placeholder="e.g. 25"
                             style={{ padding: '6px 10px', height: '36px' }}
                             required

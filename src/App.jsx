@@ -65,6 +65,9 @@ import ServiceRequestsPage from './pages/service-requests/ServiceRequestsPage';
 import NewsMediaList from './pages/news-media/NewsMediaList';
 import NewsMediaForm from './pages/news-media/NewsMediaForm';
 
+// ── FAQ ───────────────────────
+import FAQManagement from './pages/faq/FAQManagement';
+
 // ── 404 ───────────────────────
 import NotFound from './pages/NotFound';
 
@@ -140,6 +143,9 @@ export default function App() {
             <Route path="news-media" element={<NewsMediaList />} />
             <Route path="news-media/add" element={<NewsMediaForm />} />
             <Route path="news-media/:id/edit" element={<NewsMediaForm />} />
+
+            {/* FAQ Management */}
+            <Route path="faq" element={<FAQManagement />} />
 
             {/* Settings */}
             <Route path="settings" element={<Settings />} />

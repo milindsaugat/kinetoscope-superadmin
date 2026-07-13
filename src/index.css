@@ -315,3 +315,18 @@ input, textarea, select {
 }
 
 /* ============ END: index.css ============ */
+
+/* Global Modal Blur support */
+body.global-modal-blur .kfpl-sidebar,
+body.global-modal-blur .kfpl-header,
+body.global-modal-blur .kfpl-page > *:not(.kfpl-modal-overlay) {
+  filter: blur(8px);
+  pointer-events: none;
+  transition: filter 0.3s ease;
+}
+body.global-modal-blur .kfpl-modal-overlay {
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: transparent !important;
+}
