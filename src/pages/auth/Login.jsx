@@ -286,7 +286,7 @@ export default function Login() {
           )}
 
           <div className="kfpl-login-footer">
-            © 2026 Kinetoscope. All rights reserved.
+            © 2026 Kinetoscope Film Production. All rights reserved.
           </div>
         </div>
       </div>
