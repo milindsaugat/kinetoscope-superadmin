@@ -70,6 +70,10 @@ export default function ROIList() {
   // Record Payout Confirmation Modal
   const [showRecordPayoutConfirmModal, setShowRecordPayoutConfirmModal] = useState(false);
 
+  // Delete Payout Confirmation Modal state
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [deleteItemId, setDeleteItemId] = useState(null);
+
   const parseCSV = (text) => {
     const lines = text.split(/\r?\n/);
     if (lines.length <= 1) return [];
@@ -409,7 +413,7 @@ export default function ROIList() {
     });
     if (client) {
       const totalInv = client.totalInvestment || (client.profile && client.profile.totalPortfolioValue) || 0;
-      const roiPct = client.roiPercentage || (client.profile && client.profile.monthlyRoi) || 1.2;
+      const roiPct = client.monthlyRoi || (client.profile && client.profile.monthlyRoi) || client.roiPercentage || (client.profile && client.profile.roiPercentage) || 1.2;
       const monthlyReturn = Math.round((totalInv * roiPct) / 100);
       setAmountPaid(monthlyReturn);
     } else {
@@ -450,6 +454,27 @@ export default function ROIList() {
     } catch (err) {
       console.error('Failed to transition status:', err);
       addToast(err.message || 'Failed to transition to paid', 'error', 'Error');
+    }
+  };
+
+  const handleDeleteClick = (id) => {
+    setDeleteItemId(id);
+    setShowDeleteConfirmModal(true);
+  };
+
+  const confirmDeletePayout = async () => {
+    if (!deleteItemId) return;
+    try {
+      await apiRequest(`/api/super-admin/roi/payouts/${deleteItemId}`, {
+        method: 'DELETE'
+      });
+      addToast('Payout record deleted successfully.', 'success', 'Record Deleted');
+      setShowDeleteConfirmModal(false);
+      setDeleteItemId(null);
+      fetchPayouts();
+    } catch (err) {
+      console.error('Failed to delete record:', err);
+      addToast(err.message || 'Failed to delete payout record.', 'error', 'Error');
     }
   };
 
@@ -501,8 +526,8 @@ export default function ROIList() {
     const payload = {
       recipientType: recipientType === 'client' ? 'Client Return (ROI)' : 'Agent Commission',
       recipientId: recipientType === 'client' 
-        ? (selectedClientObj?._id || selectedClientObj?.user?._id || selectedClientId)
-        : (selectedAgentObj?._id || selectedAgentObj?.user?._id || selectedAgentId),
+        ? (selectedClientObj?.user?._id || selectedClientObj?._id || selectedClientId)
+        : (selectedAgentObj?.user?._id || selectedAgentObj?._id || selectedAgentId),
       recipientName: recipientType === 'client'
         ? (selectedClientObj?.fullName || selectedClientObj?.profile?.fullName || selectedClientObj?.user?.name || selectedClientObj?.name || 'Unknown Client')
         : (selectedAgentObj?.fullName || selectedAgentObj?.profile?.fullName || selectedAgentObj?.user?.name || selectedAgentObj?.name || 'Unknown Agent'),
@@ -510,9 +535,11 @@ export default function ROIList() {
         ? (selectedClientObj?.clientCode || selectedClientObj?.profile?.clientCode || selectedClientObj?.clientId || '')
         : (selectedAgentObj?.agentId || selectedAgentObj?.profile?.agentId || selectedAgentObj?.user?.clientCode || ''),
       commissionType: recipientType === 'agent' ? commissionType : undefined,
-      clientId: recipientType === 'agent' && relatedClientId 
-        ? (relatedClientObj?.user?._id || relatedClientObj?._id || relatedClientId)
-        : undefined,
+      clientId: recipientType === 'client'
+        ? (selectedClientObj?._id || selectedClientObj?.user?._id || selectedClientId)
+        : (recipientType === 'agent' && relatedClientId 
+          ? (relatedClientObj?.user?._id || relatedClientObj?._id || relatedClientId)
+          : undefined),
       roiPercentage: recipientType === 'client' 
         ? (selectedClientObj?.monthlyRoi || selectedClientObj?.summaryCards?.monthlyRoi || selectedClientObj?.profile?.monthlyRoi || selectedClientObj?.profile?.roiPercentage || selectedClientObj?.roiPercentage || 1.2)
         : undefined,
@@ -765,14 +792,27 @@ export default function ROIList() {
                   <td><Badge status={rec.status}>{rec.status}</Badge></td>
                   <td>{rec.paidAt || '—'}</td>
                   <td>
-                    {rec.status === 'pending' && (
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-start', alignItems: 'center' }}>
+                      {rec.status === 'pending' && (
+                        <button
+                          className="kfpl-btn kfpl-btn--success kfpl-btn--sm"
+                          onClick={() => handleMarkPaidClick(rec.id, rec.recordType.toLowerCase())}
+                        >
+                          Mark Paid
+                        </button>
+                      )}
                       <button
-                        className="kfpl-btn kfpl-btn--success kfpl-btn--sm"
-                        onClick={() => handleMarkPaidClick(rec.id, rec.recordType.toLowerCase())}
+                        className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
+                        style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-danger)' }}
+                        onClick={() => handleDeleteClick(rec.id)}
                       >
-                        Mark Paid
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '12px', height: '12px' }}>
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        Delete
                       </button>
-                    )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -843,7 +883,7 @@ export default function ROIList() {
                   });
                   if (!client) return null;
                   const totalInv = client.totalInvestment || (client.summaryCards && client.summaryCards.totalInvestment) || (client.profile && client.profile.totalPortfolioValue) || 0;
-                  const roiPct = client.roiPercentage || (client.profile && client.profile.roiPercentage) || 12;
+                  const roiPct = client.monthlyRoi || (client.profile && client.profile.monthlyRoi) || client.roiPercentage || (client.profile && client.profile.roiPercentage) || 1.2;
                   return (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: 'var(--color-surface)', padding: '12px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
                       <div>
@@ -1413,6 +1453,52 @@ export default function ROIList() {
               <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#EF4444' }}>Danger: Permanent Deletion</h4>
               <p style={{ margin: '2px 0 0', fontSize: '0.8125rem', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
                 You are about to delete **all Return on Investment (ROI) payouts and Agent commissions** from the system. This action is irreversible and cannot be undone.
+              </p>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Payout Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteConfirmModal}
+        onClose={() => {
+          setShowDeleteConfirmModal(false);
+          setDeleteItemId(null);
+        }}
+        title="Confirm Record Deletion"
+        footer={
+          <>
+            <button 
+              className="kfpl-btn kfpl-btn--ghost" 
+              onClick={() => {
+                setShowDeleteConfirmModal(false);
+                setDeleteItemId(null);
+              }}
+            >
+              Cancel
+            </button>
+            <button 
+              className="kfpl-btn kfpl-btn--danger" 
+              onClick={confirmDeletePayout}
+            >
+              Yes, Delete Record
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'start', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px 16px', borderRadius: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', flexShrink: 0 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+            </div>
+            <div>
+              <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#EF4444' }}>Delete Payout Record</h4>
+              <p style={{ margin: '2px 0 0', fontSize: '0.8125rem', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
+                Are you sure you want to delete this payout record? This action will permanently remove the record from the database and cannot be undone.
               </p>
             </div>
           </div>
