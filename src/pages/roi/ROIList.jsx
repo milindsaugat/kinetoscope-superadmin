@@ -11,6 +11,36 @@ import { investors, agents, formatCurrency } from '../../data/mockData';
 import { useToast } from '../../components/ui/Toast';
 import { apiRequest } from '../../config/apiHelper';
 
+const formatAgentID = (rawId) => {
+  if (!rawId || rawId === '—') return '—';
+  if (rawId.startsWith('KFPL-AG-') || rawId.startsWith('KFPL-AGT-')) {
+    return rawId.replace('KFPL-AGT-', 'KFPL-AG-');
+  }
+  const digits = rawId.match(/\d+/);
+  if (digits) {
+    let val = parseInt(digits[0], 10);
+    if (val < 1000) {
+      val = 1000 + val;
+    }
+    return `KFPL-AG-${val}`;
+  }
+  return 'KFPL-AG-1001';
+};
+
+const formatClientID = (rawId) => {
+  if (!rawId || rawId === '—') return '—';
+  if (rawId.startsWith('KFPL-CL-')) return rawId;
+  const digits = rawId.match(/\d+/);
+  if (digits) {
+    let val = parseInt(digits[0], 10);
+    if (val < 1000) {
+      val = 1000 + val;
+    }
+    return `KFPL-CL-${val}`;
+  }
+  return 'KFPL-CL-1001';
+};
+
 export default function ROIList() {
   const navigate = useNavigate();
   const addToast = useToast();
@@ -271,7 +301,7 @@ export default function ROIList() {
         id: r.id || r._id,
         investorName: r.recipientName || r.investorName || r.name || '—',
         clientId: r.recipientCode || r.clientId || r.subText || r.recipientId || '—',
-        investorId: r.investorId || r.idInternal || '',
+        investorId: r.recipientId || r.investorId || r.idInternal || '',
         roiPercentage: r.roiPercentage || 12,
         month: r.month || r.period || '—',
         amount: Number(r.amount || 0),
@@ -285,7 +315,7 @@ export default function ROIList() {
         id: r.id || r._id,
         agentName: r.recipientName || r.agentName || r.name || '—',
         agentId: r.recipientCode || r.agentId || r.subText || r.recipientId || '—',
-        idInternal: r.idInternal || '',
+        idInternal: r.recipientId || r.idInternal || '',
         type: r.commissionType || r.type || 'monthly',
         month: r.month || r.period || '—',
         amount: Number(r.amount || 0),
@@ -469,13 +499,22 @@ export default function ROIList() {
     });
 
     const payload = {
-      recipientType: recipientType === 'client' ? 'CLIENT' : 'AGENT',
+      recipientType: recipientType === 'client' ? 'Client Return (ROI)' : 'Agent Commission',
       recipientId: recipientType === 'client' 
-        ? (selectedClientObj?.user?._id || selectedClientObj?._id || selectedClientId)
-        : (selectedAgentObj?.user?._id || selectedAgentObj?._id || selectedAgentId),
+        ? (selectedClientObj?._id || selectedClientObj?.user?._id || selectedClientId)
+        : (selectedAgentObj?._id || selectedAgentObj?.user?._id || selectedAgentId),
+      recipientName: recipientType === 'client'
+        ? (selectedClientObj?.fullName || selectedClientObj?.profile?.fullName || selectedClientObj?.user?.name || selectedClientObj?.name || 'Unknown Client')
+        : (selectedAgentObj?.fullName || selectedAgentObj?.profile?.fullName || selectedAgentObj?.user?.name || selectedAgentObj?.name || 'Unknown Agent'),
+      recipientCode: recipientType === 'client'
+        ? (selectedClientObj?.clientCode || selectedClientObj?.profile?.clientCode || selectedClientObj?.clientId || '')
+        : (selectedAgentObj?.agentId || selectedAgentObj?.profile?.agentId || selectedAgentObj?.user?.clientCode || ''),
       commissionType: recipientType === 'agent' ? commissionType : undefined,
       clientId: recipientType === 'agent' && relatedClientId 
         ? (relatedClientObj?.user?._id || relatedClientObj?._id || relatedClientId)
+        : undefined,
+      roiPercentage: recipientType === 'client' 
+        ? (selectedClientObj?.monthlyRoi || selectedClientObj?.summaryCards?.monthlyRoi || selectedClientObj?.profile?.monthlyRoi || selectedClientObj?.profile?.roiPercentage || selectedClientObj?.roiPercentage || 1.2)
         : undefined,
       amount: amt,
       payoutDate: payoutDate,
@@ -519,20 +558,58 @@ export default function ROIList() {
 
   // Combine lists for unified viewing
   const unifiedRecords = [
-    ...clientROI.map(r => ({
-      ...r,
-      recordType: 'Client',
-      name: r.investorName,
-      subText: r.clientId,
-      payoutDetail: `ROI (${r.roiPercentage}%)`
-    })),
-    ...agentCommissions.map(c => ({
-      ...c,
-      recordType: 'Agent',
-      name: c.agentName,
-      subText: c.agentId,
-      payoutDetail: `Comm (${c.type})`
-    }))
+    ...clientROI.map(r => {
+      const match = dbClients.find(c => {
+        const userId = (c.user && typeof c.user === 'object' ? c.user._id : c.user) ||
+                       (c.profile?.userId) || 
+                       c._id || c.id;
+        const profileId = c._id || c.id;
+        return String(userId) === String(r.investorId) || String(profileId) === String(r.investorId);
+      });
+      const resolvedName = r.investorName && r.investorName !== 'Unknown' && r.investorName !== '—'
+        ? r.investorName
+        : (match?.fullName || match?.profile?.fullName || match?.user?.name || match?.name || 'Unknown');
+      
+      const resolvedCode = r.clientId && r.clientId !== '—' && !/^[0-9a-fA-F]{24}$/.test(r.clientId)
+        ? r.clientId
+        : formatClientID(match?.clientCode || match?.profile?.clientCode || match?.clientId || r.investorId || '');
+
+      const resolvedRoi = match 
+        ? (match.monthlyRoi || match.summaryCards?.monthlyRoi || match.profile?.monthlyRoi || match.profile?.roiPercentage || match.roiPercentage || 1.2)
+        : (r.roiPercentage || 1.2);
+
+      return {
+        ...r,
+        recordType: 'Client',
+        name: resolvedName,
+        subText: resolvedCode,
+        payoutDetail: `ROI (${resolvedRoi}%)`
+      };
+    }),
+    ...agentCommissions.map(c => {
+      const match = dbAgents.find(a => {
+        const userId = (a.user && typeof a.user === 'object' ? a.user._id : a.user) ||
+                       (a.profile?.userId) || 
+                       a._id || a.id;
+        const profileId = a._id || a.id;
+        return String(userId) === String(c.idInternal) || String(profileId) === String(c.idInternal);
+      });
+      const resolvedName = c.agentName && c.agentName !== 'Unknown' && c.agentName !== '—'
+        ? c.agentName
+        : (match?.fullName || match?.profile?.fullName || match?.user?.name || match?.name || 'Unknown');
+      
+      const resolvedCode = c.agentId && c.agentId !== '—' && !/^[0-9a-fA-F]{24}$/.test(c.agentId)
+        ? c.agentId
+        : formatAgentID(match?.agentId || match?.profile?.agentId || match?.user?.clientCode || c.idInternal || '');
+
+      return {
+        ...c,
+        recordType: 'Agent',
+        name: resolvedName,
+        subText: resolvedCode,
+        payoutDetail: `Comm (${c.type})`
+      };
+    })
   ].sort((a, b) => String(b.id || '').localeCompare(String(a.id || '')));
 
   const uniquePaymentModes = Array.from(new Set(unifiedRecords.map(r => r.paymentMode).filter(Boolean)));

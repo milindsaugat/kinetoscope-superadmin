@@ -140,8 +140,16 @@ export default function AddAgent() {
       formData.append('email', form.email);
       formData.append('residencyStatus', form.citizenship === 'International' ? 'International' : 'National (Domestic)');
       formData.append('panNumber', form.pan);
-      if (form.aadhaar) formData.append('aadhaarNumber', form.aadhaar.replace(/\s/g, ''));
-      if (form.passport) formData.append('passportNumber', form.passport);
+      if (form.citizenship === 'International') {
+        if (form.passport) {
+          formData.append('passportNumber', form.passport);
+          formData.append('aadhaarNumber', form.passport); // send passport as aadhaarNumber to satisfy backend validation
+        }
+      } else {
+        if (form.aadhaar) {
+          formData.append('aadhaarNumber', form.aadhaar.replace(/\s/g, ''));
+        }
+      }
       formData.append('bankName', form.bankName);
       formData.append('accountNumber', form.accountNo);
       formData.append('confirmAccountNumber', form.confirmAccountNo || form.accountNo);

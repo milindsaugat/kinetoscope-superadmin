@@ -43,15 +43,31 @@ export default function ClientPortalMock() {
 
             const name = profile.fullName || user.name || user.fullName || c.fullName || header.clientName || c.name || profile.name || '';
             const firstWord = name.split(' ')[0] || 'client';
-            const cleanCode = user.clientCode || c.clientCode || header.clientCode || profile.clientCode || c.clientId || profile.clientId || fallbackCode;
-            const rawId = cleanCode.includes('-') ? cleanCode.split('-')[1] : '1001';
+            
+            const formatClientID = (rawId) => {
+              if (!rawId || rawId === '—') return '—';
+              if (rawId.startsWith('KFPL-CL-')) return rawId;
+              const digits = rawId.match(/\d+/);
+              if (digits) {
+                let val = parseInt(digits[0], 10);
+                if (val < 1000) {
+                  val = 1000 + val;
+                }
+                return `KFPL-CL-${val}`;
+              }
+              return 'KFPL-CL-1001';
+            };
+
+            const cleanCode = user.clientCode || c.clientCode || header.clientCode || profile.clientCode || c.clientId || profile.clientId || user._id || c._id || fallbackCode;
+            const formattedClientId = formatClientID(cleanCode);
+            const rawId = formattedClientId.split('-').pop();
             
             const generatedPassword = `${firstWord.toLowerCase()}@${rawId}`;
             const emailVal = profile.email || user.email || c.email || '';
 
             return {
               id: c._id || user._id || profile.userId || c.id,
-              clientId: cleanCode,
+              clientId: formattedClientId,
               name: name || '—',
               email: emailVal,
               portalEmail: emailVal,

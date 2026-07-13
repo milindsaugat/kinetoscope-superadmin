@@ -47,8 +47,26 @@ export default function AgentPortalMock() {
 
               const name = profile.fullName || user.name || a.name || '';
               const firstWord = name.split(' ')[0] || 'agent';
-              const cleanCode = user.clientCode || profile.agentId || a.agentId || a._id || fallbackCode;
-              const rawId = cleanCode.includes('-') ? cleanCode.split('-')[1] : '001';
+              
+              const formatAgentID = (rawId) => {
+                if (!rawId || rawId === '—') return '—';
+                if (rawId.startsWith('KFPL-AG-') || rawId.startsWith('KFPL-AGT-')) {
+                  return rawId.replace('KFPL-AGT-', 'KFPL-AG-');
+                }
+                const digits = rawId.match(/\d+/);
+                if (digits) {
+                  let val = parseInt(digits[0], 10);
+                  if (val < 1000) {
+                    val = 1000 + val;
+                  }
+                  return `KFPL-AG-${val}`;
+                }
+                return 'KFPL-AG-1001';
+              };
+
+              const cleanCode = user.clientCode || profile.agentId || a.agentId || user._id || a._id || fallbackCode;
+              const formattedAgentId = formatAgentID(cleanCode);
+              const rawId = formattedAgentId.split('-').pop();
               
               const generatedPassword = `${firstWord.toLowerCase()}@${rawId}`;
 
@@ -57,7 +75,7 @@ export default function AgentPortalMock() {
                 name: name || '—',
                 email: profile.email || user.email || a.email || '—',
                 portalEmail: profile.email || user.email || a.email || '—',
-                agentId: cleanCode,
+                agentId: formattedAgentId,
                 portalPassword: a.portalPassword || profile.portalPassword || user.portalPassword || a.password || profile.password || generatedPassword,
                 status: profile.status || (user.isActive ? 'Active' : 'Inactive') || a.status || 'Active',
                 residencyStatus: profile.residencyStatus || a.residencyStatus || a.citizenship || '',

@@ -14,16 +14,18 @@ import { getApiUrl } from '../../config/apiUrl';
 import Modal from '../../components/ui/Modal';
 const formatAgentID = (rawId) => {
   if (!rawId || rawId === '—') return '—';
-  if (rawId.startsWith('KFPL-AGT-')) return rawId;
+  if (rawId.startsWith('KFPL-AG-') || rawId.startsWith('KFPL-AGT-')) {
+    return rawId.replace('KFPL-AGT-', 'KFPL-AG-');
+  }
   const digits = rawId.match(/\d+/);
   if (digits) {
     let val = parseInt(digits[0], 10);
     if (val < 1000) {
       val = 1000 + val;
     }
-    return `KFPL-AGT-${val}`;
+    return `KFPL-AG-${val}`;
   }
-  return 'KFPL-AGT-1001';
+  return 'KFPL-AG-1001';
 };
 
 const formatClientID = (rawId) => {
