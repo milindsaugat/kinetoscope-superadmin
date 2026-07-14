@@ -625,6 +625,7 @@ export default function AgentDetail() {
           idProofDocument: profile.idProofDocument,
           bankProofDocument: profile.bankProofDocument,
           nomineeProofDocument: profile.nomineeProofDocument,
+          residencyStatus: profile.residencyStatus || ag.residencyStatus || 'National (Domestic)',
           commissionHistory: ag.commissionHistory || []
         };
         setAgent(normalizedAg);
@@ -809,9 +810,9 @@ export default function AgentDetail() {
     const label = docLabel.toLowerCase();
     if (label.includes('nominee')) {
       fieldName = 'nomineeProofDocument';
-    } else if (label.includes('pan')) {
+    } else if (label.includes('pan') || label.includes('tax id') || label.includes('tax')) {
       fieldName = 'panDocument';
-    } else if (label.includes('aadhaar') || label.includes('id proof') || label.includes('identity')) {
+    } else if (label.includes('aadhaar') || label.includes('id proof') || label.includes('identity') || label.includes('passport') || label.includes('id card') || label.includes('national id')) {
       fieldName = 'idProofDocument';
     } else if (label.includes('bank') || label.includes('details')) {
       fieldName = 'bankProofDocument';
@@ -860,13 +861,26 @@ export default function AgentDetail() {
     } catch (err) {
       console.warn('Dedicated verify-document API failed, falling back to agent profile update...', err);
       try {
-        // Option B: Fallback to main agent patch with the entire updated documents array
+        // Option B: Fallback to main agent patch with the specific document field updated
+        const targetDoc = documentsList.find(d => (d.name || d.label) === docLabel) || {};
+        const currentDocObj = agent[fieldName] || {};
+        const updatedDocObj = {
+          url: targetDoc.url || currentDocObj.url || '',
+          status: 'Verified',
+          verified: true
+        };
+
         await apiRequest(`/api/super-admin/agents/${id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
+            [fieldName]: updatedDocObj,
+            profile: {
+              ...agent.profile,
+              [fieldName]: updatedDocObj
+            },
             documents: updatedDocs
           })
         });
@@ -1230,7 +1244,9 @@ export default function AgentDetail() {
             <div className="kfpl-detail-info-row-item">
               <div className="kfpl-detail-info-item-icon">{infoIcons.fileText}</div>
               <div className="kfpl-detail-info-item-content">
-                <span className="kfpl-detail-info-item-label">PAN Number</span>
+                <span className="kfpl-detail-info-item-label">
+                  {agent.residencyStatus === 'International' ? 'Tax ID / SSN' : 'PAN Number'}
+                </span>
                 <span className="kfpl-detail-info-item-value">{agent.pan}</span>
               </div>
             </div>
