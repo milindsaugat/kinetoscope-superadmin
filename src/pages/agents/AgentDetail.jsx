@@ -89,17 +89,118 @@ function getPeriodInvestmentDate(investor, com) {
   }
   return '';
 }
+function getCalculatedCommissions(agt, cls) {
+  const list = [];
+  if (!agt || !cls || cls.length === 0) return [];
+
+  cls.forEach((cl, index) => {
+    const totalInv = cl.totalInvestment || cl.investmentAmount || 0;
+    if (totalInv <= 0) return;
+
+    const otRate = parseFloat(agt.commissionOneTime || agt.profile?.oneTimeCommission || 0);
+    const mRate = parseFloat(agt.commissionMonthly || agt.profile?.monthlySlab || 0);
+    const spRate = parseFloat(agt.commissionSpecial || agt.profile?.specialCommission || 0);
+
+    const joinDateStr = cl.joinDate || '';
+    // Parse joinDate (format: "DD/MM/YYYY" or "YYYY-MM-DD")
+    let dateVal = new Date();
+    if (joinDateStr) {
+      const parts = joinDateStr.split('/');
+      if (parts.length === 3) {
+        dateVal = new Date(parts[2], parts[1] - 1, parts[0]);
+      } else {
+        const d = new Date(joinDateStr);
+        if (!isNaN(d.getTime())) {
+          dateVal = d;
+        }
+      }
+    }
+
+    const monthYearStr = dateVal.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+
+    // 1. One-Time Onboarding Commission
+    if (otRate > 0) {
+      const otAmt = Math.round((totalInv * otRate) / 100);
+      list.push({
+        id: `calc-ot-${cl.id || cl._id}-${index}`,
+        month: monthYearStr,
+        date: dateVal.toISOString().split('T')[0],
+        type: 'one-time',
+        commissionType: 'One-Time',
+        amount: otAmt,
+        status: 'Paid',
+        clientId: cl.id || cl._id,
+        breakdown: [{
+          clientName: cl.name || cl.fullName || '',
+          clientId: cl.clientId || '',
+          investment: totalInv,
+          rate: otRate,
+          amount: otAmt,
+          investmentDate: joinDateStr || '—'
+        }]
+      });
+    }
+
+    // 2. Monthly Recurring Commission
+    if (mRate > 0) {
+      const mAmt = Math.round((totalInv * mRate) / 100);
+      list.push({
+        id: `calc-m-${cl.id || cl._id}-${index}`,
+        month: monthYearStr,
+        date: dateVal.toISOString().split('T')[0],
+        type: 'monthly',
+        commissionType: 'Monthly',
+        amount: mAmt,
+        status: 'Paid',
+        clientId: cl.id || cl._id,
+        breakdown: [{
+          clientName: cl.name || cl.fullName || '',
+          clientId: cl.clientId || '',
+          investment: totalInv,
+          rate: mRate,
+          amount: mAmt,
+          investmentDate: joinDateStr || '—'
+        }]
+      });
+    }
+
+    // 3. Special Override Commission
+    if (spRate > 0) {
+      const spAmt = Math.round((totalInv * spRate) / 100);
+      list.push({
+        id: `calc-sp-${cl.id || cl._id}-${index}`,
+        month: monthYearStr,
+        date: dateVal.toISOString().split('T')[0],
+        type: 'special',
+        commissionType: 'Special',
+        amount: spAmt,
+        status: 'Paid',
+        clientId: cl.id || cl._id,
+        breakdown: [{
+          clientName: cl.name || cl.fullName || '',
+          clientId: cl.clientId || '',
+          investment: totalInv,
+          rate: spRate,
+          amount: spAmt,
+          investmentDate: joinDateStr || '—'
+        }]
+      });
+    }
+  });
+
+  return list;
+}
 
 function downloadStatementCSV(com, agentName) {
   const rows = [
     ['Commission Statement'],
     ['Agent', agentName],
     ['Period', com.month],
-    ['Date', formatDateDMY(com.date || com.paidAt)],
+    ['Date', formatDateDMY(com.date || com.paidAt || com.payoutDate)],
     ['Total Amount', com.amount],
     ['Status', com.status],
     [''],
-    ['Type', com.type === 'one-time' ? 'One Time' : com.type === 'special' ? 'Special' : 'Monthly'],
+    ['Type', (String(com.type || com.commissionType || '').toLowerCase().trim() === 'one-time' || String(com.type || com.commissionType || '').toLowerCase().trim() === 'one-time onboarding' || String(com.type || com.commissionType || '').toLowerCase().trim() === 'onetime' || String(com.type || com.commissionType || '').toLowerCase().trim() === 'one time') ? 'One Time' : (String(com.type || com.commissionType || '').toLowerCase().trim() === 'special' || String(com.type || com.commissionType || '').toLowerCase().trim() === 'override' || String(com.type || com.commissionType || '').toLowerCase().trim() === 'special override' ? 'Special' : 'Monthly')],
     [''],
     ['Client Name', 'Client ID', 'Investment', 'Rate %', 'Commission'],
   ];
@@ -113,32 +214,42 @@ function downloadStatementCSV(com, agentName) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `commission_${com.month.replace(/\s/g, '_')}_${agentName.replace(/\s/g, '_')}.csv`;
+  link.download = `commission_${com.month ? com.month.replace(/\s/g, '_') : 'Statement'}_${agentName.replace(/\s/g, '_')}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
 
-function downloadStatementPDF(com, agentName) {
-  const dateStr = formatDateDMY(com.date || com.paidAt);
+function downloadStatementPDF(com, agentName, agentClients = []) {
+  const dateStr = formatDateDMY(com.date || com.paidAt || com.payoutDate);
   const filteredBreakdown = com.breakdown
     ? com.breakdown.filter(b => {
-        const inv = investors.find(invObj => invObj.clientId === b.clientId);
-        return inv ? getPeriodInvestmentDate(inv, com) !== '' : false;
+        const inv = agentClients.find(invObj => invObj.clientId === b.clientId || invObj.id === b.clientId)
+          || investors.find(invObj => invObj.clientId === b.clientId || invObj.id === b.clientId);
+        if (!inv) return false;
+        const isMockInv = investors.some(invObj => invObj.clientId === b.clientId);
+        if (isMockInv) {
+          return getPeriodInvestmentDate(inv, com) !== '';
+        }
+        return true;
       })
     : [];
 
   const filteredTotal = filteredBreakdown.reduce((sum, b) => sum + b.amount, 0);
 
   const rowsHtml = filteredBreakdown.map(b => {
-    const inv = investors.find(invObj => invObj.clientId === b.clientId);
-    const invDateStr = inv ? getPeriodInvestmentDate(inv, com) : '';
+    const inv = agentClients.find(invObj => invObj.clientId === b.clientId || invObj.id === b.clientId)
+      || investors.find(invObj => invObj.clientId === b.clientId || invObj.id === b.clientId);
+    const invDateStr = inv ? (inv.joinDate || getPeriodInvestmentDate(inv, com)) : (b.investmentDate || '');
+    const comType = String(com.type || com.commissionType || '').toLowerCase().trim();
+    const isOneTime = comType === 'one-time' || comType === 'onetime' || comType === 'one time' || comType === 'one-time onboarding';
+    const isSpecial = comType === 'special' || comType === 'override' || comType === 'special override';
     return `
       <tr>
         <td style="border: 1px solid #CFDDD5; padding: 10px; font-weight: 500;">${b.clientName}</td>
         <td style="border: 1px solid #CFDDD5; padding: 10px; font-family: monospace;">${b.clientId}</td>
         <td style="border: 1px solid #CFDDD5; padding: 10px; text-align: center;">${invDateStr}</td>
         <td style="border: 1px solid #CFDDD5; padding: 10px; text-align: center;">
-          <span style="display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; ${com.type === 'one-time' ? 'background: #DBEAFE; color: #1E40AF;' : com.type === 'special' ? 'background: #FEF3C7; color: #92400E;' : 'background: #D1FAE5; color: #065F46;'}">${com.type === 'one-time' ? 'One Time' : com.type === 'special' ? 'Special' : 'Monthly'}</span>
+          <span style="display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; ${isOneTime ? 'background: #DBEAFE; color: #1E40AF;' : isSpecial ? 'background: #FEF3C7; color: #92400E;' : 'background: #D1FAE5; color: #065F46;'}">${isOneTime ? 'One Time' : isSpecial ? 'Special' : 'Monthly'}</span>
         </td>
         <td style="border: 1px solid #CFDDD5; padding: 10px; text-align: right; font-weight: 600;">${formatCurrency(b.investment)}</td>
         <td style="border: 1px solid #CFDDD5; padding: 10px; text-align: right;">${b.rate}%</td>
@@ -397,6 +508,7 @@ export default function AgentDetail() {
   const fetchAgentDetails = async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
+      let localAg = null;
       const [agentRes, clientsRes, commissionsRes, overridesRes] = await Promise.all([
         apiRequest(`/api/super-admin/agents/${id}`).catch(err => {
           console.error('Failed to load agent basic details:', err);
@@ -516,6 +628,7 @@ export default function AgentDetail() {
           commissionHistory: ag.commissionHistory || []
         };
         setAgent(normalizedAg);
+        localAg = normalizedAg;
         setLocalStatus(normalizedAg.status);
       }
 
@@ -585,12 +698,29 @@ export default function AgentDetail() {
           // Business safety rule: Newly registered agents (with 0 clients) cannot have commissions!
           if (normalizedClients.length === 0) return false;
           if (com.amount === 16250 || com.amount === 33750 || com.amount === 90000 || com.amount === 900000) return false;
-          const dateVal = com.date || com.paidAt;
+          const dateVal = com.date || com.paidAt || com.payoutDate;
           if (!dateVal || isNaN(new Date(dateVal).getTime())) return false;
           return true;
         });
       };
-      setCommissionHistory(extractCommissions(commissionsRes));
+      const dbComms = extractCommissions(commissionsRes);
+      const calculated = getCalculatedCommissions(localAg, normalizedClients);
+
+      const merged = [...dbComms];
+      calculated.forEach(calc => {
+        const hasDbEquivalent = dbComms.some(db => {
+          const dbCid = db.clientId?._id || db.clientId?.id || db.clientId;
+          const calcCid = calc.clientId;
+          const dbType = String(db.type || db.commissionType || '').toLowerCase().trim();
+          const calcType = String(calc.type).toLowerCase().trim();
+          return String(dbCid) === String(calcCid) && dbType === calcType;
+        });
+        if (!hasDbEquivalent) {
+          merged.push(calc);
+        }
+      });
+
+      setCommissionHistory(merged);
 
     } catch (err) {
       console.error('Failed to fetch agent details:', err);
@@ -813,12 +943,55 @@ export default function AgentDetail() {
     if (!commissionSearch.trim()) return true;
     const term = commissionSearch.toLowerCase();
     return (
-      com.month.toLowerCase().includes(term) ||
-      com.status.toLowerCase().includes(term) ||
-      formatDateDMY(com.date || com.paidAt).includes(term) ||
-      String(com.amount).includes(term)
+      (com.month || '').toLowerCase().includes(term) ||
+      (com.status || '').toLowerCase().includes(term) ||
+      formatDateDMY(com.date || com.paidAt || com.payoutDate).includes(term) ||
+      String(com.amount || '').includes(term)
     );
   });
+
+  const getCommissionBreakdown = (com) => {
+    if (!com) return [];
+    if (com.breakdown && com.breakdown.length > 0) {
+      return com.breakdown.filter(b => {
+        const inv = agentClients.find(cl => cl.clientId === b.clientId || cl.id === b.clientId)
+          || investors.find(invObj => invObj.clientId === b.clientId);
+        if (!inv) return false;
+        const isMockInv = investors.some(invObj => invObj.clientId === b.clientId);
+        if (isMockInv) {
+          return getPeriodInvestmentDate(inv, com) !== '';
+        }
+        return true;
+      });
+    }
+
+    // Construct fallback breakdown from single database payout record
+    const cid = com.clientId?._id || com.clientId?.id || com.clientId;
+    if (cid) {
+      const clientObj = agentClients.find(cl => cl.id === cid || cl.clientId === cid || cl._id === cid);
+      if (clientObj) {
+        let pct = 0;
+        const typeNormalized = String(com.type || com.commissionType || '').toLowerCase().trim();
+        if (typeNormalized === 'one-time' || typeNormalized === 'onetime' || typeNormalized === 'one time' || typeNormalized === 'one-time onboarding') {
+          pct = agent.commissionOneTime || 5;
+        } else if (typeNormalized === 'monthly' || typeNormalized === 'recurring' || typeNormalized === 'monthly recurring') {
+          pct = agent.commissionMonthly || 2;
+        } else if (typeNormalized === 'special' || typeNormalized === 'override' || typeNormalized === 'special override') {
+          pct = agent.commissionSpecial || 0;
+        }
+
+        return [{
+          clientName: clientObj.name,
+          clientId: clientObj.clientId,
+          investment: clientObj.totalInvestment || 0,
+          rate: pct,
+          amount: com.amount,
+          investmentDate: clientObj.joinDate || '—'
+        }];
+      }
+    }
+    return [];
+  };
 
   const tabs = ['profile', 'clients', 'commission', 'documents'];
 
@@ -1274,7 +1447,7 @@ export default function AgentDetail() {
               <button
                 className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm"
                 onClick={() => {
-                  commissionHistory.forEach(com => downloadStatementCSV(com, agent.name || agent.fullName));
+                  commissionHistory.forEach(com => downloadStatementCSV({ ...com, breakdown: getCommissionBreakdown(com) }, agent.name || agent.fullName));
                   addToast('All CSV statements downloaded', 'success', 'Download Complete');
                 }}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
@@ -1287,7 +1460,7 @@ export default function AgentDetail() {
               <button
                 className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm"
                 onClick={() => {
-                  commissionHistory.forEach(com => downloadStatementPDF(com, agent.name || agent.fullName));
+                  commissionHistory.forEach(com => downloadStatementPDF({ ...com, breakdown: getCommissionBreakdown(com) }, agent.name || agent.fullName, agentClients));
                   addToast('All PDF statements generated', 'success', 'Download Complete');
                 }}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
@@ -1320,14 +1493,21 @@ export default function AgentDetail() {
                         }}
                         title="Click to view details"
                       >
-                        {com.month || (com.date ? new Date(com.date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Statement')}
+                        {com.month || ((com.date || com.paidAt || com.payoutDate) ? new Date(com.date || com.paidAt || com.payoutDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Statement')}
                       </button>
                     </td>
-                    <td>{formatDateDMY(com.date || com.paidAt)}</td>
+                    <td>{formatDateDMY(com.date || com.paidAt || com.payoutDate)}</td>
                     <td>
-                      <Badge status={com.type === 'one-time' ? 'info' : com.type === 'special' ? 'gold' : 'active'}>
-                        {com.type === 'one-time' ? 'One Time' : com.type === 'special' ? 'Special' : 'Monthly'}
-                      </Badge>
+                      {(() => {
+                        const comType = String(com.type || com.commissionType || '').toLowerCase().trim();
+                        const isOneTime = comType === 'one-time' || comType === 'onetime' || comType === 'one time' || comType === 'one-time onboarding';
+                        const isSpecial = comType === 'special' || comType === 'override' || comType === 'special override';
+                        return (
+                          <Badge status={isOneTime ? 'info' : isSpecial ? 'gold' : 'active'}>
+                            {isOneTime ? 'One Time' : isSpecial ? 'Special' : 'Monthly'}
+                          </Badge>
+                        );
+                      })()}
                     </td>
                     <td className="font-semibold">{formatCurrency(com.amount)}</td>
                     <td><Badge status={com.status}>{com.status}</Badge></td>
@@ -1336,7 +1516,7 @@ export default function AgentDetail() {
                         <button
                           className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm"
                           onClick={() => {
-                            downloadStatementCSV(com, agent.name || agent.fullName);
+                            downloadStatementCSV({ ...com, breakdown: getCommissionBreakdown(com) }, agent.name || agent.fullName);
                             addToast(`Statement CSV downloaded for ${com.month}`, 'success', 'Downloaded');
                           }}
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', padding: '4px 8px' }}
@@ -1350,7 +1530,7 @@ export default function AgentDetail() {
                         <button
                           className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm"
                           onClick={() => {
-                            downloadStatementPDF(com, agent.name || agent.fullName);
+                            downloadStatementPDF({ ...com, breakdown: getCommissionBreakdown(com) }, agent.name || agent.fullName, agentClients);
                             addToast(`Statement PDF generated for ${com.month}`, 'success', 'Downloaded');
                           }}
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', padding: '4px 8px' }}
@@ -1374,13 +1554,8 @@ export default function AgentDetail() {
       {/* ── Commission Detail Modal ─── */}
       {(() => {
         if (!selectedCommission) return null;
-        const filteredBreakdown = selectedCommission.breakdown
-          ? selectedCommission.breakdown.filter(b => {
-              const inv = investors.find(invObj => invObj.clientId === b.clientId);
-              return inv ? getPeriodInvestmentDate(inv, selectedCommission) !== '' : false;
-            })
-          : [];
-        const filteredTotal = filteredBreakdown.reduce((sum, b) => sum + b.amount, 0);
+        const filteredBreakdown = getCommissionBreakdown(selectedCommission);
+        const filteredTotal = filteredBreakdown.length > 0 ? filteredBreakdown.reduce((sum, b) => sum + b.amount, 0) : (selectedCommission.amount || 0);
 
         return createPortal(
           <div
@@ -1401,7 +1576,7 @@ export default function AgentDetail() {
 
               <div className="kfpl-modal-body">
                 <p style={{ margin: '0 0 16px', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                  {selectedCommission.month || (selectedCommission.date ? new Date(selectedCommission.date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Statement')} — {agent.name} ({agent.agentId})
+                  {selectedCommission.month || ((selectedCommission.date || selectedCommission.paidAt || selectedCommission.payoutDate) ? new Date(selectedCommission.date || selectedCommission.paidAt || selectedCommission.payoutDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Statement')} — {agent.name || agent.fullName} ({agent.agentId})
                 </p>
 
                 <div style={{
@@ -1421,9 +1596,16 @@ export default function AgentDetail() {
                   }}>
                     <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '6px' }}>Type</div>
                     <div>
-                      <Badge status={selectedCommission.type === 'one-time' ? 'info' : selectedCommission.type === 'special' ? 'gold' : 'active'}>
-                        {selectedCommission.type === 'one-time' ? 'One Time' : selectedCommission.type === 'special' ? 'Special' : 'Monthly'}
-                      </Badge>
+                      {(() => {
+                        const comType = String(selectedCommission.type || selectedCommission.commissionType || '').toLowerCase().trim();
+                        const isOneTime = comType === 'one-time' || comType === 'onetime' || comType === 'one time' || comType === 'one-time onboarding';
+                        const isSpecial = comType === 'special' || comType === 'override' || comType === 'special override';
+                        return (
+                          <Badge status={isOneTime ? 'info' : isSpecial ? 'gold' : 'active'}>
+                            {isOneTime ? 'One Time' : isSpecial ? 'Special' : 'Monthly'}
+                          </Badge>
+                        );
+                      })()}
                     </div>
                   </div>
                   <div style={{
@@ -1431,7 +1613,7 @@ export default function AgentDetail() {
                     padding: '16px', textAlign: 'center',
                   }}>
                     <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '6px' }}>Date</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{formatDateDMY(selectedCommission.date || selectedCommission.paidAt)}</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{formatDateDMY(selectedCommission.date || selectedCommission.paidAt || selectedCommission.payoutDate)}</div>
                   </div>
                   <div style={{
                     background: 'var(--color-surface-alt, #f8fafc)', borderRadius: '12px',
@@ -1463,15 +1645,18 @@ export default function AgentDetail() {
                         <tbody>
                           {filteredBreakdown.map((b, i) => {
                             const inv = investors.find(invObj => invObj.clientId === b.clientId);
-                            const invDateStr = inv ? getPeriodInvestmentDate(inv, selectedCommission) : '';
+                            const invDateStr = inv ? getPeriodInvestmentDate(inv, selectedCommission) : (b.investmentDate || '');
+                            const comType = String(selectedCommission.type || selectedCommission.commissionType || '').toLowerCase().trim();
+                            const isOneTime = comType === 'one-time' || comType === 'onetime' || comType === 'one time' || comType === 'one-time onboarding';
+                            const isSpecial = comType === 'special' || comType === 'override' || comType === 'special override';
                             return (
                               <tr key={i}>
                                 <td className="kfpl-table-cell-primary">{b.clientName}</td>
                                 <td>{b.clientId}</td>
                                 <td style={{ textAlign: 'center' }}>{invDateStr}</td>
                                 <td style={{ textAlign: 'center' }}>
-                                  <Badge status={selectedCommission.type === 'one-time' ? 'info' : selectedCommission.type === 'special' ? 'gold' : 'active'}>
-                                    {selectedCommission.type === 'one-time' ? 'One Time' : selectedCommission.type === 'special' ? 'Special' : 'Monthly'}
+                                  <Badge status={isOneTime ? 'info' : isSpecial ? 'gold' : 'active'}>
+                                    {isOneTime ? 'One Time' : isSpecial ? 'Special' : 'Monthly'}
                                   </Badge>
                                 </td>
                                 <td style={{ textAlign: 'right' }}>{formatCurrency(b.investment)}</td>
@@ -1500,7 +1685,7 @@ export default function AgentDetail() {
                   <button
                     className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm"
                     onClick={() => {
-                      downloadStatementCSV(selectedCommission, agent.name || agent.fullName);
+                      downloadStatementCSV({ ...selectedCommission, breakdown: filteredBreakdown }, agent.name || agent.fullName);
                       addToast('Statement CSV downloaded', 'success', 'Downloaded');
                     }}
                     style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
@@ -1513,7 +1698,7 @@ export default function AgentDetail() {
                   <button
                     className="kfpl-btn kfpl-btn--primary kfpl-btn--sm"
                     onClick={() => {
-                      downloadStatementPDF(selectedCommission, agent.name || agent.fullName);
+                      downloadStatementPDF({ ...selectedCommission, breakdown: filteredBreakdown }, agent.name || agent.fullName, agentClients);
                       addToast('Statement PDF generated', 'success', 'Downloaded');
                     }}
                     style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
