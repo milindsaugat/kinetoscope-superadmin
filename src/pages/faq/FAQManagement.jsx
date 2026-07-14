@@ -6,19 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { useToast } from '../../components/ui/Toast';
-
-const STORAGE_KEY = 'kfpl_faqs';
-
-const getStoredFAQs = () => {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch { return []; }
-};
-
-const saveFAQs = (faqs) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(faqs));
-};
+import { apiRequest } from '../../config/apiHelper';
 
 const emptyForm = {
   question: '',
@@ -30,6 +18,7 @@ const emptyForm = {
 export default function FAQManagement() {
   const addToast = useToast();
   const [faqs, setFaqs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ ...emptyForm });
   const [editingId, setEditingId] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -37,8 +26,6 @@ export default function FAQManagement() {
   const [expandedId, setExpandedId] = useState(null);
   const [filterTarget, setFilterTarget] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-
-
 
   // Sync state with body class for global blur
   useEffect(() => {
@@ -52,8 +39,36 @@ export default function FAQManagement() {
     };
   }, [showModal, deleteConfirm]);
 
+  const fetchFAQs = async () => {
+    setLoading(true);
+    try {
+      const res = await apiRequest('/api/super-admin/faqs');
+      if (res.success && res.data) {
+        // Map backend targetPortal to frontend target
+        const mapped = res.data.map(faq => ({
+          id: faq._id,
+          question: faq.question,
+          answer: faq.answer,
+          target: faq.targetPortal === 'Both Portals (Client & Agent)' ? 'both' :
+                  faq.targetPortal === 'Client Dashboard Only' ? 'client' :
+                  faq.targetPortal === 'Agent Dashboard Only' ? 'agent' : 'both',
+          priority: faq.priority ?? 0,
+          createdAt: faq.createdAt,
+          updatedAt: faq.updatedAt
+        }));
+        // Sort by priority rank
+        mapped.sort((a, b) => a.priority - b.priority);
+        setFaqs(mapped);
+      }
+    } catch (err) {
+      addToast(err.message || 'Failed to fetch FAQs', 'error', 'Error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    setFaqs(getStoredFAQs());
+    fetchFAQs();
   }, []);
 
   const handleSearchChange = (e) => {
@@ -89,57 +104,126 @@ export default function FAQManagement() {
     setForm({ ...emptyForm });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.question.trim() || !form.answer.trim()) {
       addToast('Please fill in both Question and Answer', 'error', 'Validation');
       return;
     }
 
-    let updated;
-    if (editingId) {
-      updated = faqs.map(f => f.id === editingId ? { ...f, ...form, updatedAt: new Date().toISOString() } : f);
-      addToast('FAQ updated successfully', 'success', 'Updated');
-    } else {
-      const newFaq = {
-        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
-        ...form,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      updated = [...faqs, newFaq];
-      addToast('FAQ added successfully', 'success', 'Created');
-    }
+    const payload = {
+      question: form.question,
+      answer: form.answer,
+      targetPortal: form.target === 'both' ? 'Both Portals (Client & Agent)' :
+                    form.target === 'client' ? 'Client Dashboard Only' :
+                    form.target === 'agent' ? 'Agent Dashboard Only' : 'Both Portals (Client & Agent)',
+      priority: form.priority
+    };
 
-    updated.sort((a, b) => a.priority - b.priority);
-    setFaqs(updated);
-    saveFAQs(updated);
-    closeModal();
+    try {
+      if (editingId) {
+        const res = await apiRequest(`/api/super-admin/faqs/${editingId}`, {
+          method: 'PATCH',
+          body: payload
+        });
+        
+        const updatedFaq = res.data || res.faq;
+        const updatedMapped = {
+          id: editingId,
+          question: updatedFaq?.question || payload.question,
+          answer: updatedFaq?.answer || payload.answer,
+          target: updatedFaq?.targetPortal === 'Both Portals (Client & Agent)' ? 'both' :
+                  updatedFaq?.targetPortal === 'Client Dashboard Only' ? 'client' :
+                  updatedFaq?.targetPortal === 'Agent Dashboard Only' ? 'agent' : form.target,
+          priority: updatedFaq?.priority ?? form.priority,
+          updatedAt: updatedFaq?.updatedAt || new Date().toISOString()
+        };
+
+        const updatedList = faqs.map(f => f.id === editingId ? { ...f, ...updatedMapped } : f);
+        updatedList.sort((a, b) => a.priority - b.priority);
+        setFaqs(updatedList);
+        addToast('FAQ updated successfully', 'success', 'Updated');
+      } else {
+        const res = await apiRequest('/api/super-admin/faqs', {
+          method: 'POST',
+          body: payload
+        });
+
+        const createdFaq = res.data || res.faq;
+        const newMapped = {
+          id: createdFaq?._id || Date.now().toString(36),
+          question: createdFaq?.question || payload.question,
+          answer: createdFaq?.answer || payload.answer,
+          target: createdFaq?.targetPortal === 'Both Portals (Client & Agent)' ? 'both' :
+                  createdFaq?.targetPortal === 'Client Dashboard Only' ? 'client' :
+                  createdFaq?.targetPortal === 'Agent Dashboard Only' ? 'agent' : form.target,
+          priority: createdFaq?.priority ?? form.priority,
+          createdAt: createdFaq?.createdAt || new Date().toISOString(),
+          updatedAt: createdFaq?.updatedAt || new Date().toISOString()
+        };
+
+        const updatedList = [...faqs, newMapped];
+        updatedList.sort((a, b) => a.priority - b.priority);
+        setFaqs(updatedList);
+        addToast('FAQ added successfully', 'success', 'Created');
+      }
+      closeModal();
+    } catch (err) {
+      addToast(err.message || 'Failed to save FAQ', 'error', 'Error');
+    }
   };
 
-  const handleDelete = (id) => {
-    const updated = faqs.filter(f => f.id !== id);
+  const handleDelete = async (id) => {
+    try {
+      await apiRequest(`/api/super-admin/faqs/${id}`, {
+        method: 'DELETE'
+      });
+      setFaqs(prev => prev.filter(f => f.id !== id));
+      setDeleteConfirm(null);
+      addToast('FAQ deleted', 'success', 'Deleted');
+    } catch (err) {
+      addToast(err.message || 'Failed to delete FAQ', 'error', 'Error');
+    }
+  };
+
+  const swapPriority = async (index1, index2) => {
+    const item1 = faqs[index1];
+    const item2 = faqs[index2];
+    
+    // Swap priorities in memory
+    const updated = [...faqs];
+    const tempPriority = item1.priority;
+    item1.priority = item2.priority;
+    item2.priority = tempPriority;
+    [updated[index1], updated[index2]] = [updated[index2], updated[index1]];
+    
     setFaqs(updated);
-    saveFAQs(updated);
-    setDeleteConfirm(null);
-    addToast('FAQ deleted', 'success', 'Deleted');
+    
+    try {
+      await Promise.all([
+        apiRequest(`/api/super-admin/faqs/${item1.id}`, {
+          method: 'PATCH',
+          body: { priority: item1.priority }
+        }),
+        apiRequest(`/api/super-admin/faqs/${item2.id}`, {
+          method: 'PATCH',
+          body: { priority: item2.priority }
+        })
+      ]);
+      addToast('FAQ order updated', 'success', 'Saved');
+    } catch (err) {
+      addToast(err.message || 'Failed to save order', 'error', 'Error');
+      fetchFAQs();
+    }
   };
 
   const moveUp = (index) => {
     if (index === 0) return;
-    const updated = [...faqs];
-    [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
-    updated.forEach((f, i) => f.priority = i);
-    setFaqs(updated);
-    saveFAQs(updated);
+    swapPriority(index, index - 1);
   };
 
   const moveDown = (index) => {
     if (index === faqs.length - 1) return;
-    const updated = [...faqs];
-    [updated[index + 1], updated[index]] = [updated[index], updated[index + 1]];
-    updated.forEach((f, i) => f.priority = i);
-    setFaqs(updated);
-    saveFAQs(updated);
+    swapPriority(index, index + 1);
   };
 
   const targetBadge = (target) => {
@@ -231,7 +315,31 @@ export default function FAQManagement() {
       </div>
 
       {/* FAQ Accordion List */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div style={{
+          textAlign: 'center', padding: '80px 20px',
+          background: 'var(--color-surface)', borderRadius: '16px',
+          border: '1px solid var(--color-border)', margin: '10px 0',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div className="spinner" style={{
+            border: '4px solid rgba(0, 0, 0, 0.1)',
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            borderLeftColor: 'var(--color-emerald)',
+            animation: 'spin 1s linear infinite',
+            marginBottom: '16px'
+          }}></div>
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>Loading FAQs from server...</p>
+        </div>
+      ) : filtered.length === 0 ? (
         <div style={{
           textAlign: 'center', padding: '80px 20px',
           background: 'var(--color-surface)', borderRadius: '16px',
