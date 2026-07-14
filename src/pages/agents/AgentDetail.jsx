@@ -584,7 +584,7 @@ export default function AgentDetail() {
           if (com.isMock) return false;
           // Business safety rule: Newly registered agents (with 0 clients) cannot have commissions!
           if (normalizedClients.length === 0) return false;
-          if (com.amount === 16250 || com.amount === 33750 || com.amount === 900000) return false;
+          if (com.amount === 16250 || com.amount === 33750 || com.amount === 90000 || com.amount === 900000) return false;
           const dateVal = com.date || com.paidAt;
           if (!dateVal || isNaN(new Date(dateVal).getTime())) return false;
           return true;

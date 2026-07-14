@@ -151,7 +151,7 @@ export default function AgentList() {
       render: (row) => {
         const totalPaid = row.commissionHistory
           ? row.commissionHistory
-              .filter(c => c.status === 'paid')
+              .filter(c => c.status === 'paid' && c.amount !== 16250 && c.amount !== 33750 && c.amount !== 90000 && c.amount !== 900000)
               .reduce((sum, c) => sum + c.amount, 0)
           : (row.commissionPaidTotal || 0);
         return <span className="font-semibold">{formatCurrency(totalPaid)}</span>;

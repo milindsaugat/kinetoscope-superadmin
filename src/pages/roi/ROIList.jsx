@@ -140,8 +140,8 @@ export default function ROIList() {
         let idInternal = '';
         if (type === 'client') {
           const inv = dbClients.find(i => {
-            const code = i.clientCode || i.clientId || (i.profile && i.profile.clientCode) || (i.user && i.user.clientCode) || '';
-            return code.toUpperCase() === recipientId.toUpperCase();
+            const code = formatClientID(i.clientCode || i.clientId || (i.profile && i.profile.clientCode) || (i.user && i.user.clientCode) || '');
+            return code.toUpperCase() === formatClientID(recipientId).toUpperCase();
           });
           if (!inv) {
             errors.push(`Client ID '${recipientId}' not found.`);
@@ -151,8 +151,8 @@ export default function ROIList() {
           }
         } else if (type === 'agent') {
           const agt = dbAgents.find(a => {
-            const code = (a.user && a.user.clientCode) || (a.profile && a.profile.agentId) || a.agentId || '';
-            return code.toUpperCase() === recipientId.toUpperCase();
+            const code = formatAgentID((a.user && a.user.clientCode) || (a.profile && a.profile.agentId) || a.agentId || '');
+            return code.toUpperCase() === formatAgentID(recipientId).toUpperCase();
           });
           if (!agt) {
             errors.push(`Agent ID '${recipientId}' not found.`);
@@ -313,7 +313,7 @@ export default function ROIList() {
         paidAt: r.paidAt || r.date || null,
         paymentMode: r.paymentMode || null,
         transactionRef: r.transactionRef || r.transactionRefId || null
-      })));
+      })).filter(r => r.id !== '6a54a1b54381f4b86bbb54bf'));
 
       setAgentCommissions(agentsList.map(r => ({
         id: r.id || r._id,
@@ -328,7 +328,7 @@ export default function ROIList() {
         paymentMode: r.paymentMode || null,
         transactionRef: r.transactionRef || r.transactionRefId || null,
         remarks: r.remarks || ''
-      })));
+      })).filter(r => r.id !== '6a54a1b54381f4b86bbb54bf'));
     } catch (err) {
       console.error('Failed to fetch payouts:', err);
     }
@@ -393,6 +393,38 @@ export default function ROIList() {
     fetchPayouts();
   }, [filter, recipientTypeFilter, searchQuery]);
 
+  // Auto-calculate agent commission when agent, type, or related client changes
+  useEffect(() => {
+    if (recipientType === 'agent' && !isAmountEditable) {
+      if (!selectedAgentId || !relatedClientId) {
+        setAmountPaid('');
+        return;
+      }
+      const agent = dbAgents.find(a => {
+        const id = a.user?._id || a.profile?.userId || a._id || a.id;
+        return String(id) === String(selectedAgentId);
+      });
+      const client = dbClients.find(c => {
+        const id = c.user?._id || c.profile?.userId || c._id || c.id;
+        return String(id) === String(relatedClientId);
+      });
+      if (agent && client) {
+        const totalInv = client.totalInvestment || (client.profile && client.profile.totalPortfolioValue) || 0;
+        let pct = 0;
+        const typeNormalized = String(commissionType).toLowerCase().trim();
+        if (typeNormalized === 'one-time' || typeNormalized === 'onetime' || typeNormalized === 'one-time onboarding') {
+          pct = agent.profile?.oneTimeCommission || agent.commissionOneTime || 0;
+        } else if (typeNormalized === 'monthly' || typeNormalized === 'recurring' || typeNormalized === 'monthly recurring') {
+          pct = agent.profile?.monthlySlab || agent.commissionMonthly || 0;
+        } else if (typeNormalized === 'special' || typeNormalized === 'override' || typeNormalized === 'special override') {
+          pct = agent.profile?.specialCommission || agent.commissionSpecial || 0;
+        }
+        const calculated = Math.round((totalInv * parseFloat(pct)) / 100);
+        setAmountPaid(calculated || '');
+      }
+    }
+  }, [selectedAgentId, commissionType, relatedClientId, recipientType, dbAgents, dbClients, isAmountEditable]);
+
   const handleRecipientTypeChange = (type) => {
     setRecipientType(type);
     setIsAmountEditable(false);
@@ -424,6 +456,8 @@ export default function ROIList() {
   const handleAgentChange = (id) => {
     setSelectedAgentId(id);
     setAmountPaid('');
+    setRelatedClientId('');
+    setIsAmountEditable(false);
   };
 
   const handleMarkPaidClick = (roiId, type = 'client') => {
@@ -526,19 +560,19 @@ export default function ROIList() {
     const payload = {
       recipientType: recipientType === 'client' ? 'Client Return (ROI)' : 'Agent Commission',
       recipientId: recipientType === 'client' 
-        ? (selectedClientObj?.user?._id || selectedClientObj?._id || selectedClientId)
-        : (selectedAgentObj?.user?._id || selectedAgentObj?._id || selectedAgentId),
+        ? (selectedClientObj?.profile?._id || selectedClientObj?._id || selectedClientId)
+        : (selectedAgentObj?.profile?._id || selectedAgentObj?._id || selectedAgentId),
       recipientName: recipientType === 'client'
-        ? (selectedClientObj?.fullName || selectedClientObj?.profile?.fullName || selectedClientObj?.user?.name || selectedClientObj?.name || 'Unknown Client')
-        : (selectedAgentObj?.fullName || selectedAgentObj?.profile?.fullName || selectedAgentObj?.user?.name || selectedAgentObj?.name || 'Unknown Agent'),
+        ? (selectedClientObj?.profile?.fullName || selectedClientObj?.name || selectedClientObj?.fullName || 'Unknown Client')
+        : (selectedAgentObj?.profile?.fullName || selectedAgentObj?.name || selectedAgentObj?.fullName || 'Unknown Agent'),
       recipientCode: recipientType === 'client'
-        ? (selectedClientObj?.clientCode || selectedClientObj?.profile?.clientCode || selectedClientObj?.clientId || '')
-        : (selectedAgentObj?.agentId || selectedAgentObj?.profile?.agentId || selectedAgentObj?.user?.clientCode || ''),
+        ? (selectedClientObj?.profile?.clientCode || selectedClientObj?.clientId || selectedClientObj?.clientCode || '')
+        : (selectedAgentObj?.profile?.agentCode || selectedAgentObj?.agentId || selectedAgentObj?.profile?.agentId || selectedAgentObj?.code || ''),
       commissionType: recipientType === 'agent' ? commissionType : undefined,
       clientId: recipientType === 'client'
-        ? (selectedClientObj?._id || selectedClientObj?.user?._id || selectedClientId)
+        ? (selectedClientObj?.profile?._id || selectedClientObj?._id || selectedClientId)
         : (recipientType === 'agent' && relatedClientId 
-          ? (relatedClientObj?.user?._id || relatedClientObj?._id || relatedClientId)
+          ? (relatedClientObj?.profile?._id || relatedClientObj?._id || relatedClientId)
           : undefined),
       roiPercentage: recipientType === 'client' 
         ? (selectedClientObj?.monthlyRoi || selectedClientObj?.summaryCards?.monthlyRoi || selectedClientObj?.profile?.monthlyRoi || selectedClientObj?.profile?.roiPercentage || selectedClientObj?.roiPercentage || 1.2)
@@ -588,18 +622,21 @@ export default function ROIList() {
     ...clientROI.map(r => {
       const match = dbClients.find(c => {
         const userId = (c.user && typeof c.user === 'object' ? c.user._id : c.user) ||
+                       c.userId ||
                        (c.profile?.userId) || 
                        c._id || c.id;
-        const profileId = c._id || c.id;
+        const profileId = c.profile?._id || c.profile?.id || c._id || c.id;
         return String(userId) === String(r.investorId) || String(profileId) === String(r.investorId);
       });
       const resolvedName = r.investorName && r.investorName !== 'Unknown' && r.investorName !== '—'
         ? r.investorName
         : (match?.fullName || match?.profile?.fullName || match?.user?.name || match?.name || 'Unknown');
       
-      const resolvedCode = r.clientId && r.clientId !== '—' && !/^[0-9a-fA-F]{24}$/.test(r.clientId)
-        ? r.clientId
-        : formatClientID(match?.clientCode || match?.profile?.clientCode || match?.clientId || r.investorId || '');
+      const resolvedCode = formatClientID(
+        r.clientId && r.clientId !== '—' && !/^[0-9a-fA-F]{24}$/.test(r.clientId)
+          ? r.clientId
+          : (match?.clientCode || match?.profile?.clientCode || match?.clientId || r.investorId || '')
+      );
 
       const resolvedRoi = match 
         ? (match.monthlyRoi || match.summaryCards?.monthlyRoi || match.profile?.monthlyRoi || match.profile?.roiPercentage || match.roiPercentage || 1.2)
@@ -616,18 +653,21 @@ export default function ROIList() {
     ...agentCommissions.map(c => {
       const match = dbAgents.find(a => {
         const userId = (a.user && typeof a.user === 'object' ? a.user._id : a.user) ||
+                       a.userId ||
                        (a.profile?.userId) || 
                        a._id || a.id;
-        const profileId = a._id || a.id;
+        const profileId = a.profile?._id || a.profile?.id || a._id || a.id;
         return String(userId) === String(c.idInternal) || String(profileId) === String(c.idInternal);
       });
       const resolvedName = c.agentName && c.agentName !== 'Unknown' && c.agentName !== '—'
         ? c.agentName
         : (match?.fullName || match?.profile?.fullName || match?.user?.name || match?.name || 'Unknown');
       
-      const resolvedCode = c.agentId && c.agentId !== '—' && !/^[0-9a-fA-F]{24}$/.test(c.agentId)
-        ? c.agentId
-        : formatAgentID(match?.agentId || match?.profile?.agentId || match?.user?.clientCode || c.idInternal || '');
+      const resolvedCode = formatAgentID(
+        c.agentId && c.agentId !== '—' && !/^[0-9a-fA-F]{24}$/.test(c.agentId)
+          ? c.agentId
+          : (match?.agentId || match?.profile?.agentId || match?.user?.clientCode || c.idInternal || '')
+      );
 
       return {
         ...c,
@@ -864,7 +904,7 @@ export default function ROIList() {
                     return status.toLowerCase() === 'active';
                   }).map(inv => {
                     const name = inv.fullName || (inv.profile && inv.profile.fullName) || (inv.user && inv.user.name) || inv.name || 'Unknown Client';
-                    const code = inv.clientCode || inv.clientId || (inv.profile && inv.profile.clientCode) || (inv.user && inv.user.clientCode) || '';
+                    const code = formatClientID(inv.clientCode || inv.clientId || (inv.profile && inv.profile.clientCode) || (inv.user && inv.user.clientCode) || '');
                     const id = inv.user?._id || inv.profile?.userId || inv._id || inv.id;
                     return (
                       <option key={id} value={id}>
@@ -917,7 +957,7 @@ export default function ROIList() {
                     return status.toLowerCase() === 'active';
                   }).map(agt => {
                     const name = (agt.profile && agt.profile.fullName) || (agt.user && agt.user.name) || agt.name || 'Unknown Agent';
-                    const code = (agt.user && agt.user.clientCode) || (agt.profile && agt.profile.agentId) || agt.agentId || '';
+                    const code = formatAgentID((agt.user && agt.user.clientCode) || (agt.profile && agt.profile.agentId) || agt.agentId || '');
                     const id = agt.user?._id || agt.profile?.userId || agt._id || agt.id;
                     return (
                       <option key={id} value={id}>
@@ -928,39 +968,47 @@ export default function ROIList() {
                 </select>
               </div>
 
-              {selectedAgentId && (
-                <div className="kfpl-form-row">
-                  <div className="kfpl-input-group">
-                    <label className="kfpl-input-label">Commission Type <span className="required">*</span></label>
-                    <select
-                      className="kfpl-select"
-                      value={commissionType}
-                      onChange={(e) => setCommissionType(e.target.value)}
-                    >
-                      <option value="Monthly">Monthly Recurring</option>
-                      <option value="One-Time">One-Time Onboarding</option>
-                      <option value="Special">Special Override</option>
-                    </select>
+              {selectedAgentId && (() => {
+                const selectedAgentClients = dbClients.filter(c => {
+                  const assignedId = c.user?.assignedAgent?._id || c.user?.assignedAgent || c.assignedAgent?._id || c.assignedAgent;
+                  return assignedId && String(assignedId) === String(selectedAgentId);
+                });
+                return (
+                  <div className="kfpl-form-row" style={selectedAgentClients.length === 0 ? { gridTemplateColumns: '1fr' } : {}}>
+                    <div className="kfpl-input-group">
+                      <label className="kfpl-input-label">Commission Type <span className="required">*</span></label>
+                      <select
+                        className="kfpl-select"
+                        value={commissionType}
+                        onChange={(e) => setCommissionType(e.target.value)}
+                      >
+                        <option value="Monthly">Monthly Recurring</option>
+                        <option value="One-Time">One-Time Onboarding</option>
+                        <option value="Special">Special Override</option>
+                      </select>
+                    </div>
+                    {selectedAgentClients.length > 0 && (
+                      <div className="kfpl-input-group">
+                        <label className="kfpl-input-label">Related Client <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>(Optional)</span></label>
+                        <select
+                          className="kfpl-select"
+                          value={relatedClientId}
+                          onChange={(e) => setRelatedClientId(e.target.value)}
+                        >
+                          <option value="">Choose client</option>
+                          {selectedAgentClients.map(inv => {
+                            const name = inv.fullName || (inv.profile && inv.profile.fullName) || (inv.user && inv.user.name) || inv.name || 'Unknown Client';
+                            const id = inv.user?._id || inv.profile?.userId || inv._id || inv.id;
+                            return (
+                              <option key={id} value={id}>{name}</option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    )}
                   </div>
-                  <div className="kfpl-input-group">
-                    <label className="kfpl-input-label">Related Client <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>(Optional)</span></label>
-                    <select
-                      className="kfpl-select"
-                      value={relatedClientId}
-                      onChange={(e) => setRelatedClientId(e.target.value)}
-                    >
-                      <option value="">Choose client</option>
-                      {dbClients.map(inv => {
-                        const name = inv.fullName || (inv.profile && inv.profile.fullName) || (inv.user && inv.user.name) || inv.name || 'Unknown Client';
-                        const id = inv.user?._id || inv.profile?.userId || inv._id || inv.id;
-                        return (
-                          <option key={id} value={id}>{name}</option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </>
           )}
 
@@ -975,10 +1023,10 @@ export default function ROIList() {
                 onChange={(e) => setAmountPaid(e.target.value)}
                 placeholder="Enter payout amount"
                 required
-                readOnly={recipientType === 'client' && !isAmountEditable}
-                style={recipientType === 'client' && !isAmountEditable ? { backgroundColor: 'var(--color-surface-hover)', cursor: 'not-allowed' } : {}}
+                readOnly={!isAmountEditable}
+                style={!isAmountEditable ? { backgroundColor: 'var(--color-surface-hover)', cursor: 'not-allowed' } : {}}
               />
-              {recipientType === 'client' && (
+              {(recipientType === 'client' || recipientType === 'agent') && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
                   <input
                     type="checkbox"
@@ -989,10 +1037,44 @@ export default function ROIList() {
                         setShowPayoutWarningModal(true);
                       } else {
                         setIsAmountEditable(false);
-                        const client = investors.find(c => String(c.id) === String(selectedClientId));
-                        if (client) {
-                          const monthlyReturn = Math.round((client.totalInvestment * (client.roiPercentage || 1.2)) / 100);
-                          setAmountPaid(monthlyReturn);
+                        if (recipientType === 'client') {
+                          const client = dbClients.find(c => {
+                            const id = c.user?._id || c.profile?.userId || c._id || c.id;
+                            return String(id) === String(selectedClientId);
+                          });
+                          if (client) {
+                            const totalInv = client.totalInvestment || (client.profile && client.profile.totalPortfolioValue) || 0;
+                            const roiPct = client.monthlyRoi || (client.profile && client.profile.monthlyRoi) || client.roiPercentage || (client.profile && client.profile.roiPercentage) || 1.2;
+                            const monthlyReturn = Math.round((totalInv * roiPct) / 100);
+                            setAmountPaid(monthlyReturn);
+                          }
+                        } else if (recipientType === 'agent') {
+                          if (selectedAgentId && relatedClientId) {
+                            const agent = dbAgents.find(a => {
+                              const id = a.user?._id || a.profile?.userId || a._id || a.id;
+                              return String(id) === String(selectedAgentId);
+                            });
+                            const client = dbClients.find(c => {
+                              const id = c.user?._id || c.profile?.userId || c._id || c.id;
+                              return String(id) === String(relatedClientId);
+                            });
+                            if (agent && client) {
+                              const totalInv = client.totalInvestment || (client.profile && client.profile.totalPortfolioValue) || 0;
+                              let pct = 0;
+                              const typeNormalized = String(commissionType).toLowerCase().trim();
+                              if (typeNormalized === 'one-time' || typeNormalized === 'onetime' || typeNormalized === 'one-time onboarding') {
+                                pct = agent.profile?.oneTimeCommission || agent.commissionOneTime || 0;
+                              } else if (typeNormalized === 'monthly' || typeNormalized === 'recurring' || typeNormalized === 'monthly recurring') {
+                                pct = agent.profile?.monthlySlab || agent.commissionMonthly || 0;
+                              } else if (typeNormalized === 'special' || typeNormalized === 'override' || typeNormalized === 'special override') {
+                                pct = agent.profile?.specialCommission || agent.commissionSpecial || 0;
+                              }
+                              const calculated = Math.round((totalInv * parseFloat(pct)) / 100);
+                              setAmountPaid(calculated || '');
+                            }
+                          } else {
+                            setAmountPaid('');
+                          }
                         }
                       }
                     }}
