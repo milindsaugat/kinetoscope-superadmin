@@ -49,17 +49,30 @@ export default function EditAgent() {
         ]);
 
         const extractSlabs = (r) => {
-          if (!r) return [];
-          if (Array.isArray(r)) return r;
-          if (r.data) {
-            if (Array.isArray(r.data)) return r.data;
-            if (r.data.slabs && Array.isArray(r.data.slabs)) return r.data.slabs;
+          let rawList = [];
+          if (!r) rawList = [];
+          else if (Array.isArray(r)) rawList = r;
+          else if (r.data) {
+            if (Array.isArray(r.data)) rawList = r.data;
+            else if (r.data.slabs && Array.isArray(r.data.slabs)) rawList = r.data.slabs;
           }
-          if (r.slabs && Array.isArray(r.slabs)) return r.slabs;
-          for (const k in r) {
-            if (Array.isArray(r[k])) return r[k];
+          else if (r.slabs && Array.isArray(r.slabs)) rawList = r.slabs;
+          else {
+            for (const k in r) {
+              if (Array.isArray(r[k])) {
+                rawList = r[k];
+                break;
+              }
+            }
           }
-          return [];
+          return rawList.map(s => ({
+            id: s._id || s.id,
+            minAmount: s.minAmount || 0,
+            maxAmount: (s.maxAmount === null || s.maxAmount === undefined || s.maxAmount === 999999999) ? 999999999 : s.maxAmount,
+            commissionPercentage: s.commissionPercentage !== undefined ? s.commissionPercentage : (s.percentage || 0),
+            percentage: s.commissionPercentage !== undefined ? s.commissionPercentage : (s.percentage || 0),
+            type: s.type || 'monthly'
+          }));
         };
         setApiSlabs(extractSlabs(slabsRes));
 
@@ -309,6 +322,7 @@ export default function EditAgent() {
                     const oneTimeApiSlabs = apiSlabs.filter(s => s.type === 'one-time');
                     if (oneTimeApiSlabs.length > 0) {
                       const formatCurrencyLocal = (val) => {
+                        if (val === null || val === undefined) val = 0;
                         if (val === 999999999) return 'Unlimited';
                         if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
                         if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
@@ -336,6 +350,7 @@ export default function EditAgent() {
                     const monthlyApiSlabs = apiSlabs.filter(s => (s.type || 'monthly') === 'monthly');
                     if (monthlyApiSlabs.length > 0) {
                       const formatCurrencyLocal = (val) => {
+                        if (val === null || val === undefined) val = 0;
                         if (val === 999999999) return 'Unlimited';
                         if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
                         if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
