@@ -7,45 +7,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../../components/ui/Toast';
 import Modal from '../../components/ui/Modal';
 import Badge from '../../components/ui/Badge';
-
-const DEFAULT_REWARDS = [
-  { 
-    id: 'rew-1', 
-    targetDescription: 'Recruit 10 Active Clients', 
-    targetType: 'Clients Count', 
-    targetValue: 10, 
-    targetDays: 45, 
-    targetMonths: 3, 
-    rewardDescription: 'Free annual holiday package to Bali + Elite Partner Badge', 
-    imageUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200"><rect width="100%" height="100%" fill="%23ECFDF5"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%2310B981" font-family="sans-serif" font-weight="bold" font-size="18">BALI TRIP PACK</text></svg>',
-    videoUrl: '',
-    isActive: true 
-  },
-  { 
-    id: 'rew-2', 
-    targetDescription: 'Reach ₹50 Lakhs Business Volume', 
-    targetType: 'Investment Volume', 
-    targetValue: 5000000, 
-    targetDays: 90, 
-    targetMonths: 6, 
-    rewardDescription: '₹1 Lakh cash bonus + Golden Trophy at annual meet', 
-    imageUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200"><rect width="100%" height="100%" fill="%23FFFBEB"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23F59E0B" font-family="sans-serif" font-weight="bold" font-size="18">GOLDEN TROPHY</text></svg>',
-    videoUrl: '',
-    isActive: true 
-  },
-  { 
-    id: 'rew-3', 
-    targetDescription: 'Reach ₹1 Crore Business Volume', 
-    targetType: 'Investment Volume', 
-    targetValue: 10000000, 
-    targetDays: 180, 
-    targetMonths: 12, 
-    rewardDescription: '₹2.5 Lakhs cash bonus + Diamond Ring & VIP Board seat', 
-    imageUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200"><rect width="100%" height="100%" fill="%23EFF6FF"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%233B82F6" font-family="sans-serif" font-weight="bold" font-size="18">DIAMOND VIP SEAT</text></svg>',
-    videoUrl: '',
-    isActive: true 
-  }
-];
+import { apiRequest } from '../../config/apiHelper';
 
 export default function RewardConfig() {
   const addToast = useToast();
@@ -54,6 +16,11 @@ export default function RewardConfig() {
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('add'); // 'add' | 'edit'
   const [previewMedia, setPreviewMedia] = useState(null);
+  const [loading, setLoading] = useState(false);
+  
+  // File Upload states for multipart/form-data
+  const [imageFile, setImageFile] = useState(null);
+  const [videoFile, setVideoFile] = useState(null);
 
   const [form, setForm] = useState({ 
     id: '', 
@@ -68,21 +35,36 @@ export default function RewardConfig() {
     isActive: true 
   });
 
-  // Load from localStorage on mount
-  useEffect(() => {
-    const data = localStorage.getItem('kfpl_reward_catalog');
-    if (data) {
-      setRewards(JSON.parse(data));
-    } else {
-      setRewards(DEFAULT_REWARDS);
-      localStorage.setItem('kfpl_reward_catalog', JSON.stringify(DEFAULT_REWARDS));
+  const fetchRewards = async () => {
+    setLoading(true);
+    try {
+      const res = await apiRequest('/api/super-admin/rewards');
+      const rawRewards = res.data?.rewards || res.rewards || res.data || [];
+      const mapped = rawRewards.map(r => ({
+        id: r._id || r.id,
+        targetDescription: r.targetMilestoneDescription || '',
+        targetType: r.targetMetricType || 'Clients Count',
+        targetValue: r.targetThresholdValue || '',
+        targetDays: r.targetLimitDays || '',
+        targetMonths: r.targetLimitMonths || '',
+        rewardDescription: r.rewardDescription || '',
+        imageUrl: r.rewardImage || '',
+        videoUrl: r.rewardVideo || '',
+        isActive: r.isActive !== undefined ? r.isActive : true
+      }));
+      setRewards(mapped);
+    } catch (err) {
+      console.error('Failed to load rewards:', err);
+      addToast(err.message || 'Failed to load rewards from backend', 'danger', 'Error');
+      setRewards([]);
+    } finally {
+      setLoading(false);
     }
-  }, []);
-
-  const saveRewards = (updatedList) => {
-    setRewards(updatedList);
-    localStorage.setItem('kfpl_reward_catalog', JSON.stringify(updatedList));
   };
+
+  useEffect(() => {
+    fetchRewards();
+  }, []);
 
   const handleOpenAdd = () => {
     setForm({ 
@@ -97,6 +79,8 @@ export default function RewardConfig() {
       videoUrl: '',
       isActive: true 
     });
+    setImageFile(null);
+    setVideoFile(null);
     setModalType('add');
     setShowModal(true);
   };
@@ -114,41 +98,58 @@ export default function RewardConfig() {
       videoUrl: rew.videoUrl || '',
       isActive: rew.isActive !== undefined ? rew.isActive : true
     });
+    setImageFile(null);
+    setVideoFile(null);
     setModalType('edit');
     setShowModal(true);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this reward definition?')) {
-      const updated = rewards.filter(r => r.id !== id);
-      saveRewards(updated);
-      addToast('Reward definition deleted successfully', 'success', 'Reward Deleted');
+      try {
+        await apiRequest(`/api/super-admin/rewards/${id}`, {
+          method: 'DELETE'
+        });
+        addToast('Reward definition deleted successfully', 'success', 'Reward Deleted');
+        fetchRewards();
+      } catch (err) {
+        console.error('Failed to delete reward:', err);
+        addToast(err.message || 'Failed to delete reward', 'danger', 'Error');
+      }
     }
   };
 
-  const handleToggleStatus = (id) => {
-    const updated = rewards.map(r => {
-      if (r.id === id) {
-        const nextActive = !r.isActive;
-        addToast(`Reward status toggled to ${nextActive ? 'Active' : 'Inactive'}`, 'info', 'Status Updated');
-        return { ...r, isActive: nextActive };
-      }
-      return r;
-    });
-    saveRewards(updated);
+  const handleToggleStatus = async (id) => {
+    const targetReward = rewards.find(r => r.id === id);
+    if (!targetReward) return;
+
+    const nextActive = !targetReward.isActive;
+
+    try {
+      await apiRequest(`/api/super-admin/rewards/${id}`, {
+        method: 'PATCH',
+        body: { isActive: nextActive }
+      });
+      addToast(`Reward status toggled to ${nextActive ? 'Active' : 'Inactive'}`, 'info', 'Status Updated');
+      fetchRewards();
+    } catch (err) {
+      console.error('Failed to toggle status:', err);
+      addToast(err.message || 'Failed to toggle status', 'danger', 'Error');
+    }
   };
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    setImageFile(file);
     const reader = new FileReader();
     reader.onload = (ev) => {
       setForm(prev => ({
         ...prev,
         imageUrl: ev.target.result
       }));
-      addToast('Reward image uploaded successfully', 'success', 'Image Uploaded');
+      addToast('Reward image selected successfully', 'success', 'Image Selected');
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -158,19 +159,20 @@ export default function RewardConfig() {
     const file = e.target.files[0];
     if (!file) return;
 
+    setVideoFile(file);
     const reader = new FileReader();
     reader.onload = (ev) => {
       setForm(prev => ({
         ...prev,
         videoUrl: ev.target.result
       }));
-      addToast('Reward video uploaded successfully', 'success', 'Video Uploaded');
+      addToast('Reward video selected successfully', 'success', 'Video Selected');
     };
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.targetDescription.trim()) {
       alert('Target Description is required.');
       return;
@@ -188,36 +190,50 @@ export default function RewardConfig() {
     const days = parseInt(form.targetDays) || '';
     const months = parseInt(form.targetMonths) || '';
 
-    let updated;
-    if (modalType === 'add') {
-      const newRew = {
-        ...form,
-        id: 'rew-' + Date.now(),
-        targetValue: val,
-        targetDays: days,
-        targetMonths: months
-      };
-      updated = [...rewards, newRew];
-      addToast('New reward added successfully', 'success', 'Reward Created');
-    } else {
-      updated = rewards.map(r => {
-        if (r.id === form.id) {
-          return { ...form, targetValue: val, targetDays: days, targetMonths: months };
-        }
-        return r;
-      });
-      addToast('Reward updated successfully', 'success', 'Reward Updated');
-    }
+    try {
+      const formData = new FormData();
+      formData.append('targetMetricType', form.targetType);
+      formData.append('targetThresholdValue', String(val));
+      formData.append('targetLimitDays', String(days));
+      formData.append('targetLimitMonths', String(months));
+      formData.append('targetMilestoneDescription', form.targetDescription);
+      formData.append('rewardDescription', form.rewardDescription);
+      formData.append('isActive', String(form.isActive));
 
-    saveRewards(updated);
-    setShowModal(false);
+      if (imageFile) {
+        formData.append('rewardImage', imageFile);
+      }
+      if (videoFile) {
+        formData.append('rewardVideo', videoFile);
+      }
+
+      if (modalType === 'add') {
+        await apiRequest('/api/super-admin/rewards', {
+          method: 'POST',
+          body: formData
+        });
+        addToast('New reward added successfully', 'success', 'Reward Created');
+      } else {
+        await apiRequest(`/api/super-admin/rewards/${form.id}`, {
+          method: 'PATCH',
+          body: formData
+        });
+        addToast('Reward updated successfully', 'success', 'Reward Updated');
+      }
+      setShowModal(false);
+      fetchRewards();
+    } catch (err) {
+      console.error('Failed to save reward:', err);
+      addToast(err.message || 'Failed to save reward', 'danger', 'Error');
+    }
   };
 
   const formatTargetValue = (type, val) => {
     if (type === 'Clients Count') return `${val} Clients`;
-    if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
-    if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
-    return `₹${val.toLocaleString('en-IN')}`;
+    const num = parseFloat(val) || 0;
+    if (num >= 10000000) return `₹${(num / 10000000).toFixed(2)} Cr`;
+    if (num >= 100000) return `₹${(num / 100000).toFixed(2)} L`;
+    return `₹${num.toLocaleString('en-IN')}`;
   };
 
   return (
@@ -250,7 +266,11 @@ export default function RewardConfig() {
               </tr>
             </thead>
             <tbody>
-              {rewards.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="8" style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: '30px' }}>Loading rewards from database...</td>
+                </tr>
+              ) : rewards.length === 0 ? (
                 <tr>
                   <td colSpan="8" style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: '30px' }}>No rewards configured.</td>
                 </tr>
@@ -365,7 +385,7 @@ export default function RewardConfig() {
                 onChange={(e) => setForm(prev => ({ ...prev, targetType: e.target.value }))}
               >
                 <option value="Clients Count">Clients Count</option>
-                <option value="Investment Volume">Investment Volume (₹)</option>
+                <option value="Investment Volume (₹)">Investment Volume (₹)</option>
               </select>
             </div>
             <div className="kfpl-input-group" style={{ flex: 1 }}>
