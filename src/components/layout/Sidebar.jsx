@@ -4,7 +4,7 @@
    ============================================================ */
 
 import { useState, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { getApiUrl } from '../../config/apiUrl';
 import { apiRequest } from '../../config/apiHelper';
 
@@ -183,6 +183,7 @@ export default function Sidebar({ isCollapsed, onToggle, isMobileOpen, onMobileC
 
   const isActive = (path) => {
     if (path === '/dashboard') return location.pathname === '/dashboard';
+    if (path === '/settings') return location.pathname === '/settings';
     return location.pathname.startsWith(path);
   };
 
@@ -231,7 +232,7 @@ export default function Sidebar({ isCollapsed, onToggle, isMobileOpen, onMobileC
             <div className="kfpl-sidebar-section" key={section.title}>
               <div className="kfpl-sidebar-section-title">{section.title}</div>
               {section.items.map((item) => (
-                <NavLink
+                <Link
                   key={item.path}
                   to={item.path}
                   className={`kfpl-sidebar-item ${isActive(item.path) ? 'active' : ''}`}
@@ -246,7 +247,7 @@ export default function Sidebar({ isCollapsed, onToggle, isMobileOpen, onMobileC
                   ) : item.badge ? (
                     <span className="kfpl-sidebar-item-badge">{item.badge}</span>
                   ) : null}
-                </NavLink>
+                </Link>
               ))}
             </div>
           ))}
