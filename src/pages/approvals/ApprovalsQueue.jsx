@@ -3,7 +3,7 @@
    Description: Redesigned deposit and withdrawal approvals queue with verification detail modals
    ============================================================ */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
@@ -108,6 +108,8 @@ export default function ApprovalsQueue() {
   const [withdrawalsList, setWithdrawalsList] = useState([]);
   const [selectedRequestDetails, setSelectedRequestDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [stats, setStats] = useState({ totalPending: 0, pendingDeposits: 0, pendingDepositsVal: 0, pendingWithdrawals: 0, pendingWithdrawalsVal: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -228,9 +230,11 @@ export default function ApprovalsQueue() {
 
   const confirmApprove = async () => {
     const item = modal.item;
-    if (!item) return;
+    if (!item || isSubmittingRef.current) return;
     
     try {
+      isSubmittingRef.current = true;
+      setActionLoading(true);
       await apiRequest(`/api/super-admin/transactions/${item.id || item._id}/action`, {
         method: 'PATCH',
         body: {
@@ -239,21 +243,26 @@ export default function ApprovalsQueue() {
         }
       });
 
-      addToast('success', 'Request Approved', `${item.type === 'deposit' ? 'Deposit' : 'Withdrawal'} of ${formatCurrency(item.amount)} approved.`);
+      addToast(`${item.type === 'deposit' ? 'Deposit' : 'Withdrawal'} of ${formatCurrency(item.amount)} approved.`, 'success', 'Request Approved');
       setModal({ open: false, type: '', item: null });
       setAdminNote('');
       fetchApprovals();
     } catch (err) {
       console.error('Failed to approve transaction request:', err);
-      addToast('danger', 'Approval Failed', err.message || 'Failed to approve request.');
+      addToast(err.message || 'Failed to approve request.', 'danger', 'Approval Failed');
+    } finally {
+      isSubmittingRef.current = false;
+      setActionLoading(false);
     }
   };
 
   const confirmReject = async () => {
     const item = modal.item;
-    if (!item || !rejectReason.trim()) return;
+    if (!item || !rejectReason.trim() || isSubmittingRef.current) return;
 
     try {
+      isSubmittingRef.current = true;
+      setActionLoading(true);
       await apiRequest(`/api/super-admin/transactions/${item.id || item._id}/action`, {
         method: 'PATCH',
         body: {
@@ -262,14 +271,17 @@ export default function ApprovalsQueue() {
         }
       });
 
-      addToast('error', 'Request Rejected', `${item.type === 'deposit' ? 'Deposit' : 'Withdrawal'} of ${formatCurrency(item.amount)} rejected.`);
+      addToast(`${item.type === 'deposit' ? 'Deposit' : 'Withdrawal'} of ${formatCurrency(item.amount)} rejected.`, 'success', 'Request Rejected');
       setModal({ open: false, type: '', item: null });
       setRejectReason('');
       setShowRejectForm(false);
       fetchApprovals();
     } catch (err) {
       console.error('Failed to reject transaction request:', err);
-      addToast('danger', 'Rejection Failed', err.message || 'Failed to reject request.');
+      addToast(err.message || 'Failed to reject request.', 'danger', 'Rejection Failed');
+    } finally {
+      isSubmittingRef.current = false;
+      setActionLoading(false);
     }
   };
 
@@ -422,24 +434,24 @@ export default function ApprovalsQueue() {
             <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '10px' }}>
               <div>
                 {!showRejectForm ? (
-                  <button className="kfpl-btn kfpl-btn--danger" onClick={() => setShowRejectForm(true)}>
+                  <button className="kfpl-btn kfpl-btn--danger" onClick={() => setShowRejectForm(true)} disabled={actionLoading}>
                     Reject Request
                   </button>
                 ) : (
-                  <button className="kfpl-btn kfpl-btn--ghost" onClick={() => setShowRejectForm(false)}>
+                  <button className="kfpl-btn kfpl-btn--ghost" onClick={() => setShowRejectForm(false)} disabled={actionLoading}>
                     Back to Approve
                   </button>
                 )}
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button className="kfpl-btn kfpl-btn--ghost" onClick={() => setModal({ open: false, type: '', item: null })}>Cancel</button>
+                <button className="kfpl-btn kfpl-btn--ghost" onClick={() => setModal({ open: false, type: '', item: null })} disabled={actionLoading}>Cancel</button>
                 {showRejectForm ? (
-                  <button className="kfpl-btn kfpl-btn--danger" onClick={confirmReject} disabled={!rejectReason.trim()}>
-                    Confirm Rejection
+                  <button className="kfpl-btn kfpl-btn--danger" onClick={confirmReject} disabled={!rejectReason.trim() || actionLoading}>
+                    {actionLoading ? 'Rejecting...' : 'Confirm Rejection'}
                   </button>
                 ) : (
-                  <button className="kfpl-btn kfpl-btn--success" onClick={confirmApprove}>
-                    Approve Payment
+                  <button className="kfpl-btn kfpl-btn--success" onClick={confirmApprove} disabled={actionLoading}>
+                    {actionLoading ? 'Approving...' : 'Approve Payment'}
                   </button>
                 )}
               </div>
@@ -737,7 +749,7 @@ export default function ApprovalsQueue() {
                                   <div className="kfpl-receipt-mockup" style={{ width: '100%', fontFamily: 'monospace' }}>
                                     <div className="kfpl-receipt-mockup-header">
                                       <div className="kfpl-receipt-mockup-title">BANK TRANSACTION SLIP</div>
-                                      <div className="kfpl-receipt-mockup-bank">Kross Film Productions Ltd.</div>
+                                      <div className="kfpl-receipt-mockup-bank">Kinetoscope Film Production Pvt Ltd.</div>
                                     </div>
                                     <div className="kfpl-receipt-mockup-row">
                                       <span className="kfpl-receipt-mockup-label">Sender:</span>

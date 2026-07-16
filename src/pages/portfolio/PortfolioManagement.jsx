@@ -1143,7 +1143,7 @@ export default function PortfolioManagement() {
       <div className="kfpl-page-header">
         <div className="kfpl-page-header-left">
           <h2 className="kfpl-page-title">Portfolio Management</h2>
-          <p className="kfpl-page-subtitle">Manage projects, segments, and media across the KFPL portfolio</p>
+          <p className="kfpl-page-subtitle">Manage projects, segments, and media across the Kinetoscope portfolio</p>
         </div>
         <div className="kfpl-page-header-actions" style={{ display: 'flex', gap: '8px' }}>
           <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" onClick={openSegmentsManager}>

@@ -51,14 +51,15 @@ const PRESET_TEMPLATES = [
   {
     id: 'welcome',
     name: 'Welcome Investor Kit',
-    subject: 'Welcome to KFPL Family - Investor Onboarding',
-    body: `<h3>Welcome to Kross Film Productions Ltd (KFPL)</h3>
+    subject: 'Welcome to Kinetoscope Family - Investor Onboarding',
+    body: `<h3>Welcome to Kinetoscope Film Production Pvt Ltd</h3>
+<p style="font-size:0.95rem;color:#64748b;margin-top:-10px;margin-bottom:15px;font-style:italic;">A Global Media Fund</p>
 <p>Dear {ClientName},</p>
 <p>We are thrilled to welcome you as an esteemed partner in our premium film investment catalog. Your account has been verified and registered under Client ID: <strong>{ClientID}</strong>.</p>
 <p>You can now log in to the Client Portal using your registered email address to check your monthly ROI allocation, active portfolio value, and download certificate statements.</p>
 <p>If you have any questions, feel free to reach out to your assigned representative or raise a ticket in the support center.</p>
 <br/>
-<p>Warm Regards,<br/><strong>KFPL Admin Desk</strong></p>`,
+<p>Warm Regards,<br/><strong>Kinetoscope Admin Desk</strong></p>`,
     targetRole: 'client'
   },
   {
@@ -70,19 +71,19 @@ const PRESET_TEMPLATES = [
 <p>Based on your latest portfolio expansion, we are delighted to inform you that your profile has been promoted to a higher Perks tier. You have unlocked exclusive privileges including higher priority project allocations, invitation to private screening events, and direct access to production advisory panels.</p>
 <p>Please log in to your portal and visit the "Perks & Recognition" tab to view your active benefits.</p>
 <br/>
-<p>Cheers,<br/><strong>KFPL Investor Relations Team</strong></p>`,
+<p>Cheers,<br/><strong>Kinetoscope Investor Relations Team</strong></p>`,
     targetRole: 'client'
   },
   {
     id: 'statement',
     name: 'Quarterly Statement Notice',
-    subject: 'KFPL Quarterly Investment Statement Available',
+    subject: 'Kinetoscope Quarterly Investment Statement Available',
     body: `<h3>Quarterly Investment Statement Released</h3>
 <p>Dear Partner,</p>
 <p>This is to inform you that the quarterly ROI statements and investment audit reports for the period ended June 2026 have been generated. You can download the authenticated PDF/CSV statement ledger directly from the documents vault under your account details.</p>
 <p>All active movie project segments have yielded competitive returns aligned with the monthly slab projections.</p>
 <br/>
-<p>Regards,<br/><strong>KFPL Operations Desk</strong></p>`,
+<p>Regards,<br/><strong>Kinetoscope Operations Desk</strong></p>`,
     targetRole: 'client'
   },
   {
@@ -94,27 +95,27 @@ const PRESET_TEMPLATES = [
 <p>This is an automated reminder regarding your pending KYC documentation. To keep your movie portfolio active and receive uninterrupted monthly payouts, please verify your identity details. Upload your PAN card, Aadhaar card, and bank proof documents through your portal profile section at your earliest convenience.</p>
 <p>Security and compliance are crucial for our investment cycles.</p>
 <br/>
-<p>Best Regards,<br/><strong>KFPL Compliance Department</strong></p>`,
+<p>Best Regards,<br/><strong>Kinetoscope Compliance Department</strong></p>`,
     targetRole: 'client'
   },
   // Agent-Specific Templates
   {
     id: 'agent-welcome',
     name: 'Agent Onboarding Welcome',
-    subject: 'Welcome to KFPL Agent Network - Onboarding Complete',
-    body: `<h3>Welcome to the KFPL Agent Network! 🤝</h3>
+    subject: 'Welcome to Kinetoscope Agent Network - Onboarding Complete',
+    body: `<h3>Welcome to the Kinetoscope Agent Network! 🤝</h3>
 <p>Dear {AgentName},</p>
-<p>Congratulations on being onboarded as a verified Agent Partner with Kross Film Productions Ltd. Your Agent ID is: <strong>{AgentID}</strong>.</p>
+<p>Congratulations on being onboarded as a verified Agent Partner with Kinetoscope Film Production Pvt Ltd. Your Agent ID is: <strong>{AgentID}</strong>.</p>
 <p>You can now access the Agent Portal to manage your referred client base, track commission earnings, submit deposit/withdrawal requests on behalf of clients, and view your performance dashboard.</p>
 <p>We look forward to a productive partnership. If you need any assistance, please reach out to the admin support desk.</p>
 <br/>
-<p>Best Regards,<br/><strong>KFPL Agent Operations Desk</strong></p>`,
+<p>Best Regards,<br/><strong>Kinetoscope Agent Operations Desk</strong></p>`,
     targetRole: 'agent'
   },
   {
     id: 'agent-commission',
     name: 'Commission Payout Notification',
-    subject: 'KFPL Commission Payout Processed - {AgentID}',
+    subject: 'Kinetoscope Commission Payout Processed - {AgentID}',
     body: `<h3>Commission Payout Confirmation 💸</h3>
 <p>Dear {AgentName},</p>
 <p>We are pleased to confirm that your commission payout has been successfully processed. Below is the transaction summary:</p>
@@ -125,16 +126,16 @@ const PRESET_TEMPLATES = [
 </ul>
 <p>You can view detailed commission breakdowns, slab tier details, and historical payouts in the Agent Portal under the "Commission Slabs" section.</p>
 <br/>
-<p>Thank you for your continued partnership.<br/><strong>KFPL Finance Department</strong></p>`,
+<p>Thank you for your continued partnership.<br/><strong>Kinetoscope Finance Department</strong></p>`,
     targetRole: 'agent'
   },
   {
     id: 'agent-performance',
     name: 'Monthly Performance Report',
-    subject: 'KFPL Monthly Agent Performance Summary',
+    subject: 'Kinetoscope Monthly Agent Performance Summary',
     body: `<h3>Monthly Performance Report 📊</h3>
 <p>Dear {AgentName},</p>
-<p>Here is your monthly performance snapshot as an Agent Partner with KFPL (Agent ID: <strong>{AgentID}</strong>):</p>
+<p>Here is your monthly performance snapshot as an Agent Partner with Kinetoscope (Agent ID: <strong>{AgentID}</strong>):</p>
 <ul>
 <li><strong>Active Referred Clients:</strong> View in portal</li>
 <li><strong>Total Deposits Processed:</strong> View in portal</li>
@@ -143,20 +144,20 @@ const PRESET_TEMPLATES = [
 <p>Keep up the excellent work! Higher referral volumes unlock premium commission tiers and exclusive bonus incentives.</p>
 <p>Log in to your Agent Portal dashboard for detailed analytics and graphs.</p>
 <br/>
-<p>Best Regards,<br/><strong>KFPL Agent Relations Team</strong></p>`,
+<p>Best Regards,<br/><strong>Kinetoscope Agent Relations Team</strong></p>`,
     targetRole: 'agent'
   },
   {
     id: 'agent-referral',
     name: 'Referral Bonus Announcement',
-    subject: 'New Referral Bonus Unlocked! - KFPL Agent Rewards',
+    subject: 'New Referral Bonus Unlocked! - Kinetoscope Agent Rewards',
     body: `<h3>Referral Bonus Achieved! 🎉</h3>
 <p>Dear {AgentName},</p>
-<p>Great news! Based on your recent client referrals, you have unlocked a special referral bonus reward. Your consistent efforts in expanding the KFPL investor network have been recognized.</p>
+<p>Great news! Based on your recent client referrals, you have unlocked a special referral bonus reward. Your consistent efforts in expanding the Kinetoscope investor network have been recognized.</p>
 <p>Details of your bonus will be reflected in your next commission cycle. Please check the "Commission Slabs" tab in your Agent Portal for the latest updates.</p>
 <p>Thank you for being a valued partner in our growth journey.</p>
 <br/>
-<p>Warm Regards,<br/><strong>KFPL Rewards & Incentives Team</strong></p>`,
+<p>Warm Regards,<br/><strong>Kinetoscope Rewards & Incentives Team</strong></p>`,
     targetRole: 'agent'
   }
 ];

@@ -82,7 +82,17 @@ export default function InvestorList() {
     const fetchClients = async () => {
       setLoading(true);
       try {
-        const res = await apiRequest('/api/super-admin/clients');
+        const [res, agentsRes] = await Promise.all([
+          apiRequest('/api/super-admin/clients'),
+          apiRequest('/api/super-admin/agents').catch(() => null)
+        ]);
+
+        let dbAgents = [];
+        if (agentsRes) {
+          const rawA = agentsRes.data || agentsRes;
+          dbAgents = Array.isArray(rawA) ? rawA : (rawA.agents || rawA.list || []);
+        }
+
         const list = res.data?.clients || res.data || res.clients || [];
         if (Array.isArray(list)) {
           console.log('Fetched raw clients:', list);
@@ -115,7 +125,13 @@ export default function InvestorList() {
 
             let agentIdVal = '';
             let agentNameVal = c.assignedAgentName || header.assignedAgentName || profile.assignedAgentName || '';
-            const rawAgent = c.assignedAgent || profile.assignedAgent || null;
+            const rawAgent = c.assignedAgent || 
+                             profile.assignedAgent || 
+                             user.assignedAgent || 
+                             (c.userId && typeof c.userId === 'object' && c.userId.assignedAgent) || 
+                             (c.user && typeof c.user === 'object' && c.user.assignedAgent) || 
+                             null;
+
             if (rawAgent && typeof rawAgent === 'object') {
               agentIdVal = rawAgent._id || rawAgent.id || '';
               const agUser = rawAgent.user || {};
@@ -123,6 +139,16 @@ export default function InvestorList() {
               agentNameVal = agentNameVal || agProfile.fullName || agUser.name || rawAgent.fullName || rawAgent.name || '';
             } else if (rawAgent) {
               agentIdVal = String(rawAgent);
+            }
+
+            // Lookup agent name if not populated but agent ID is present
+            if (agentIdVal && (!agentNameVal || agentNameVal === 'Direct Client (No Agent)')) {
+              const matchedAgent = dbAgents.find(a => (a._id || a.id) === agentIdVal);
+              if (matchedAgent) {
+                const agUser = matchedAgent.user || {};
+                const agProfile = matchedAgent.profile || {};
+                agentNameVal = agProfile.fullName || agUser.name || matchedAgent.fullName || matchedAgent.name || '';
+              }
             }
 
             return {
@@ -158,6 +184,7 @@ export default function InvestorList() {
         }
       } catch (err) {
         console.error('Failed to fetch clients:', err);
+        addToast(err.message || 'Failed to fetch clients.', 'error', 'Error');
         setClients([]);
       } finally {
         setLoading(false);

@@ -7,6 +7,13 @@ import { useState } from 'react';
 import { formatCurrency } from '../../data/mockData';
 
 export default function AreaChart({ data, height = 260 }) {
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: `${height}px`, color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+        No data available
+      </div>
+    );
+  }
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const padding = { top: 24, right: 20, bottom: 44, left: 14 };
   const chartWidth = 600;
@@ -14,11 +21,11 @@ export default function AreaChart({ data, height = 260 }) {
   const plotW = chartWidth - padding.left - padding.right;
   const plotH = chartHeight - padding.top - padding.bottom;
 
-  const allValues = data.flatMap(d => [d.investments, d.withdrawals]);
-  const maxVal = Math.max(...allValues) * 1.15;
+  const allValues = data.flatMap(d => [d.investments || 0, d.withdrawals || 0]);
+  const maxVal = Math.max(...allValues, 1) * 1.15;
 
-  const getX = (i) => padding.left + (i / (data.length - 1)) * plotW;
-  const getY = (val) => padding.top + plotH - (val / maxVal) * plotH;
+  const getX = (i) => padding.left + (i / (data.length > 1 ? data.length - 1 : 1)) * plotW;
+  const getY = (val) => padding.top + plotH - ((val || 0) / maxVal) * plotH;
 
   // Create smooth bezier path
   const createSmoothPath = (points) => {
@@ -34,8 +41,8 @@ export default function AreaChart({ data, height = 260 }) {
     return path;
   };
 
-  const investPoints = data.map((d, i) => ({ x: getX(i), y: getY(d.investments) }));
-  const withdrawPoints = data.map((d, i) => ({ x: getX(i), y: getY(d.withdrawals) }));
+  const investPoints = data.map((d, i) => ({ x: getX(i), y: getY(d.investments || 0) }));
+  const withdrawPoints = data.map((d, i) => ({ x: getX(i), y: getY(d.withdrawals || 0) }));
 
   const investLine = createSmoothPath(investPoints);
   const withdrawLine = createSmoothPath(withdrawPoints);

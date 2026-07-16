@@ -7,12 +7,19 @@ import { useState } from 'react';
 import { formatCurrency } from '../../data/mockData';
 
 export default function LineChart({ data, height = 220, color = '#10B981' }) {
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: `${height}px`, color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+        No data available
+      </div>
+    );
+  }
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const padding = { top: 20, right: 20, bottom: 40, left: 10 };
   const width = 100; // Percentage-based
   
-  const values = data.map(d => d.amount);
-  const maxVal = Math.max(...values) * 1.15;
+  const values = data.map(d => d.amount || 0);
+  const maxVal = Math.max(...values, 1) * 1.15;
   const minVal = 0;
 
   // We'll use viewBox percentage approach
@@ -21,11 +28,11 @@ export default function LineChart({ data, height = 220, color = '#10B981' }) {
   const plotW = chartWidth - padding.left - padding.right;
   const plotH = chartHeight - padding.top - padding.bottom;
 
-  const getX = (i) => padding.left + (i / (data.length - 1)) * plotW;
-  const getY = (val) => padding.top + plotH - ((val - minVal) / (maxVal - minVal)) * plotH;
+  const getX = (i) => padding.left + (i / (data.length > 1 ? data.length - 1 : 1)) * plotW;
+  const getY = (val) => padding.top + plotH - (((val || 0) - minVal) / (maxVal - minVal)) * plotH;
 
   // Create path
-  const points = data.map((d, i) => ({ x: getX(i), y: getY(d.amount) }));
+  const points = data.map((d, i) => ({ x: getX(i), y: getY(d.amount || 0) }));
   const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
   
   // Area path

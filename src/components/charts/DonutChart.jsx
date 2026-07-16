@@ -8,6 +8,13 @@ import { useState } from 'react';
 const SEGMENT_COLORS = ['#10B981', '#1565C0', '#2E7D32', '#E65100', '#7B1FA2', '#00838F'];
 
 export default function DonutChart({ data, size = 200, strokeWidth = 32 }) {
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: `${size}px`, color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+        No data available
+      </div>
+    );
+  }
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;

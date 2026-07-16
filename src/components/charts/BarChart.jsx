@@ -7,8 +7,15 @@ import { useState } from 'react';
 import { formatCurrency } from '../../data/mockData';
 
 export default function BarChart({ data, height = 280 }) {
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: `${height}px`, color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+        No data available
+      </div>
+    );
+  }
   const [hoveredIndex, setHoveredIndex] = useState(null);
-  const maxVal = Math.max(...data.map(d => d.amount));
+  const maxVal = Math.max(...data.map(d => d.amount || 0), 1);
 
   const barHeight = 24;
   const gap = 8;
@@ -16,7 +23,7 @@ export default function BarChart({ data, height = 280 }) {
   const valueWidth = 80;
   const chartWidth = 500;
   const plotWidth = chartWidth - labelWidth - valueWidth - 20;
-  const totalHeight = data.length * (barHeight + gap) - gap;
+  const totalHeight = Math.max(data.length * (barHeight + gap) - gap, 10);
 
   return (
     <div className="kfpl-bar-h-chart-wrap" style={{ position: 'relative' }}>
