@@ -23,6 +23,21 @@ import {
   formatCurrency, formatNumber,
 } from '../../data/mockData';
 
+const formatClientID = (rawId) => {
+  if (!rawId || rawId === '—') return '—';
+  const str = String(rawId).trim();
+  if (/^KFPL-CL-\d+$/i.test(str)) {
+    return str.toUpperCase();
+  }
+  const digitsMatch = str.match(/\d+/);
+  if (digitsMatch) {
+    let val = parseInt(digitsMatch[0], 10);
+    if (val < 1000) val = 1000 + val;
+    return `KFPL-CL-${val}`;
+  }
+  return 'KFPL-CL-1001';
+};
+
 // ── KPI Icons (SVG) ───────────────────────
 const kpiIcons = {
   investors: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
@@ -157,7 +172,7 @@ export default function Dashboard() {
               return {
                 id: c._id || c.id || i,
                 name: profile.fullName || user.name || c.fullName || c.name || 'Investor',
-                clientId: user.clientCode || c.clientCode || c.clientId || profile.clientId || `KFPL-100${i+1}`,
+                clientId: formatClientID(user.clientCode || c.clientCode || c.clientId || profile.clientId || i + 1),
                 category: (c.tier || c.profile?.tier || c.category || c.profile?.category || 'silver').toLowerCase(),
                 amount
               };

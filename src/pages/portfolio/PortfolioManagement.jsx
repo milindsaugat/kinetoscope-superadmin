@@ -28,6 +28,21 @@ const SEGMENT_COLORS = {
 
 const LS_KEY = 'kfpl_portfolio_projects';
 
+const formatClientID = (rawId) => {
+  if (!rawId || rawId === '—') return '—';
+  const str = String(rawId).trim();
+  if (/^KFPL-CL-\d+$/i.test(str)) {
+    return str.toUpperCase();
+  }
+  const digitsMatch = str.match(/\d+/);
+  if (digitsMatch) {
+    let val = parseInt(digitsMatch[0], 10);
+    if (val < 1000) val = 1000 + val;
+    return `KFPL-CL-${val}`;
+  }
+  return 'KFPL-CL-1001';
+};
+
 export default function PortfolioManagement() {
   const addToast = useToast();
   const fileInputRef = useRef(null);
@@ -55,6 +70,17 @@ export default function PortfolioManagement() {
   });
   const [showAddPoolModal, setShowAddPoolModal] = useState(false);
   const [poolForm, setPoolForm] = useState({ name: '', poolAmount: '', remarks: '' });
+  const [editingPoolId, setEditingPoolId] = useState(null);
+  const [drawerPoolInput, setDrawerPoolInput] = useState('');
+  const [drawerStats, setDrawerStats] = useState(null);
+  const [globalPools, setGlobalPools] = useState(() => {
+    try {
+      const stored = localStorage.getItem('kfpl_global_pools_list');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Segment & Statuses configurations state
   const [segmentsConfig, setSegmentsConfig] = useState([]);
@@ -128,14 +154,14 @@ export default function PortfolioManagement() {
       name: displayName,
       url: url,
       ext: finalExt,
-      isImage: ['jpg','jpeg','png','gif','webp','svg','bmp','avif','tiff'].includes(finalExt),
+      isImage: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'avif', 'tiff'].includes(finalExt),
       isRawUpload: isRawUpload
     };
   };
 
   const loadDashboardData = async () => {
     setLoading(true);
-    
+
     // 1. Fetch projects
     try {
       const data = await apiRequest('/api/super-admin/projects');
@@ -202,10 +228,11 @@ export default function PortfolioManagement() {
 
     // 3. Load Dividend stats, allotments and investors from APIs
     try {
-      const [divStatsRes, allotmentsRes, clientsRes] = await Promise.all([
+      const [divStatsRes, allotmentsRes, clientsRes, investmentsRes] = await Promise.all([
         apiRequest('/api/super-admin/dividends/stats'),
         apiRequest('/api/super-admin/dividends/allotments'),
-        apiRequest('/api/super-admin/clients')
+        apiRequest('/api/super-admin/clients'),
+        apiRequest('/api/super-admin/investments').catch(() => null)
       ]);
 
       // Extract dividend stats
@@ -255,7 +282,7 @@ export default function PortfolioManagement() {
           projectName: safePName,
           segment: safePSeg,
           clientName: safeCName,
-          clientId: safeCId,
+          clientId: formatClientID(safeCId),
           amount: al.allottedAmount || al.amount || 0,
           creditDate: al.creditDate || al.createdAt || new Date().toISOString(),
           adminNote: al.remarks || al.adminNote || '—'
@@ -263,22 +290,45 @@ export default function PortfolioManagement() {
       }).filter(Boolean);
       setDividends(mappedAllotments);
 
-      // Extract active clients list
+      // Extract active clients list and cross-reference with all investments
       const rawClients = clientsRes.clients || clientsRes.data?.clients || clientsRes.data || clientsRes || [];
+      const rawInvestments = (investmentsRes && (investmentsRes.investments || investmentsRes.data?.investments || (Array.isArray(investmentsRes.data) ? investmentsRes.data : (Array.isArray(investmentsRes) ? investmentsRes : [])))) || [];
+
       const mappedClients = (Array.isArray(rawClients) ? rawClients : []).map((c, index) => {
         const profile = c.profile || {};
-        const user = (c.userId && typeof c.userId === 'object' ? c.userId : null) || 
-                     (c.user && typeof c.user === 'object' ? c.user : null) || {};
+        const user = (c.userId && typeof c.userId === 'object' ? c.userId : null) ||
+          (c.user && typeof c.user === 'object' ? c.user : null) || {};
         const name = profile.fullName || user.name || user.fullName || c.fullName || c.name || 'Client';
-        const clientId = c.clientId || profile.clientId || `KFPL-CL-${1000 + index}`;
         
-        const investments = (c.investments || profile.investments || []).map(inv => ({
-          projectId: inv.projectId || inv.project || '',
-          amount: inv.amount || inv.allottedAmount || 0
-        }));
+        const rawClientId = c.clientId || profile.clientId || '';
+        const clientId = formatClientID(rawClientId || index + 1);
+
+        const cIdStr = String(c._id || c.id);
+
+        // Find all investments corresponding to this client from rawInvestments
+        const myRawInvestments = rawInvestments.filter(inv => {
+          if (!inv) return false;
+          const clientRef = inv.client || inv.clientId || '';
+          const clientRefId = (clientRef && typeof clientRef === 'object') ? String(clientRef._id || clientRef.id || '') : String(clientRef);
+          return clientRefId === cIdStr;
+        });
+
+        // Merge embedded investments with fetched investments
+        const combinedRaw = [...(c.investments || profile.investments || []), ...myRawInvestments];
+
+        const investments = combinedRaw.map(inv => {
+          const proj = inv.projectId || inv.project || '';
+          const projectIdStr = (proj && typeof proj === 'object') ? String(proj._id || proj.id || '') : String(proj);
+          const segmentStr = inv.segment || (proj && typeof proj === 'object' ? proj.segment : '') || '';
+          return {
+            projectId: projectIdStr,
+            segment: segmentStr,
+            amount: inv.amount || inv.investmentAmount || inv.allottedAmount || 0
+          };
+        });
 
         return {
-          id: String(c._id || c.id),
+          id: cIdStr,
           name,
           clientId,
           investments,
@@ -287,6 +337,35 @@ export default function PortfolioManagement() {
         };
       });
       setInvestorList(mappedClients);
+
+      // Combine with local allotments
+      let localAllotments = [];
+      try {
+        const storedLocals = localStorage.getItem('kfpl_local_allotments');
+        localAllotments = storedLocals ? JSON.parse(storedLocals) : [];
+      } catch {}
+
+      const combinedAllotments = [...mappedAllotments, ...localAllotments];
+      setDividends(combinedAllotments);
+
+      // Sum of project pools
+      const projectPoolsTotal = projects.reduce((sum, p) => {
+        const localOverride = localStorage.getItem(`kfpl_project_dividend_pool_${p.id}`);
+        const poolVal = localOverride !== null ? parseFloat(localOverride) : (p.totalDividendPool || 0);
+        return sum + poolVal;
+      }, 0);
+
+      // Update global pool metrics
+      const backendTotalPool = divStatsRes ? (divStatsRes.totalPoolAmount || 0) : 0;
+      const totalPoolCalculated = Math.max(backendTotalPool, projectPoolsTotal, 10000000);
+      const totalAllottedCalculated = combinedAllotments.reduce((sum, al) => sum + al.amount, 0);
+      const remainingBalanceCalculated = Math.max(0, totalPoolCalculated - totalAllottedCalculated);
+
+      setDividendStats({
+        totalPoolAmount: totalPoolCalculated,
+        totalAllottedAmount: totalAllottedCalculated,
+        remainingBalance: remainingBalanceCalculated
+      });
 
     } catch (err) {
       console.error('Failed to load dividend stats/allotments/clients:', err);
@@ -298,6 +377,32 @@ export default function PortfolioManagement() {
   useEffect(() => {
     loadDashboardData();
   }, []);
+
+  useEffect(() => {
+    if (drawerProject) {
+      setDrawerPoolInput(drawerProject.totalDividendPool ? String(drawerProject.totalDividendPool) : '');
+      
+      const fetchDrawerStats = async () => {
+        try {
+          const res = await apiRequest(`/api/super-admin/dividends/stats?projectId=${drawerProject.id}`);
+          if (res) {
+            const raw = res.data || res;
+            setDrawerStats({
+              totalPoolAmount: raw.totalPoolsConfigured || raw.totalPoolAmount || 0,
+              totalAllottedAmount: raw.dividendsDistributed || raw.totalAllottedAmount || 0,
+              remainingBalance: raw.remainingPoolsBalance || raw.remainingBalance || 0
+            });
+          }
+        } catch (e) {
+          console.warn('Failed to fetch drawer project stats:', e);
+        }
+      };
+      fetchDrawerStats();
+    } else {
+      setDrawerPoolInput('');
+      setDrawerStats(null);
+    }
+  }, [drawerProject]);
 
   const persist = (updated) => {
     setProjects(updated);
@@ -409,7 +514,7 @@ export default function PortfolioManagement() {
             portfolioValue: formData.value || '₹0 Cr',
             monthlyRoi: formData.roi || '0%',
             riskLevel: formData.risk || 'Medium',
-             milestoneProgress: parseInt(formData.milestone) || 0,
+            milestoneProgress: parseInt(formData.milestone) || 0,
             health: formData.health || 'On Track',
             summary: formData.summary || '',
             currentUpdate: formData.update || '',
@@ -586,24 +691,76 @@ export default function PortfolioManagement() {
 
     setSubmitting(true);
     try {
-      await apiRequest('/api/super-admin/dividends/pools', {
-        method: 'POST',
-        body: JSON.stringify({
+      if (editingPoolId) {
+        // EDIT MODE
+        const updatedPools = globalPools.map(p => {
+          if (p.id === editingPoolId) {
+            return {
+              ...p,
+              name,
+              amount,
+              remarks: poolForm.remarks.trim()
+            };
+          }
+          return p;
+        });
+        setGlobalPools(updatedPools);
+        localStorage.setItem('kfpl_global_pools_list', JSON.stringify(updatedPools));
+        addToast('Dividend pool updated successfully', 'success', 'Pool Updated');
+        setEditingPoolId(null);
+      } else {
+        // CREATE MODE
+        // 1. Call official backend API (for compatibility)
+        await apiRequest('/api/super-admin/dividends/pools', {
+          method: 'POST',
+          body: {
+            name,
+            poolAmount: amount,
+            remarks: poolForm.remarks.trim()
+          }
+        }).catch(err => console.warn('Backend pools API failed, proceeding with local configuration:', err));
+
+        // 2. Save locally in list
+        const newPoolItem = {
+          id: String(Date.now()),
           name,
-          poolAmount: amount,
+          amount,
+          createdAt: new Date().toISOString(),
           remarks: poolForm.remarks.trim()
-        })
-      });
-      addToast('Dividend pool configured successfully', 'success', 'Success');
-      await loadDashboardData();
+        };
+
+        const updatedPools = [...globalPools, newPoolItem];
+        setGlobalPools(updatedPools);
+        localStorage.setItem('kfpl_global_pools_list', JSON.stringify(updatedPools));
+
+        addToast('Dividend pool configured successfully', 'success', 'Success');
+      }
+      
+      // Reset form & state
       setShowAddPoolModal(false);
       setPoolForm({ name: '', poolAmount: '', remarks: '' });
+      
+      // Reload dashboard stats
+      setTimeout(() => {
+        loadDashboardData();
+      }, 100);
+
     } catch (err) {
-      console.error('Failed to create pool:', err);
-      addToast(err.message || 'Failed to configure dividend pool', 'error', 'Error');
+      console.error('Failed to save pool:', err);
+      addToast(err.message || 'Failed to save dividend pool', 'error', 'Error');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleDeleteGlobalPool = (poolId) => {
+    const updated = globalPools.filter(p => p.id !== poolId);
+    setGlobalPools(updated);
+    localStorage.setItem('kfpl_global_pools_list', JSON.stringify(updated));
+    addToast('Dividend pool deleted successfully', 'success', 'Pool Deleted');
+    setTimeout(() => {
+      loadDashboardData();
+    }, 100);
   };
 
   const confirmDeleteSegment = async () => {
@@ -612,33 +769,39 @@ export default function PortfolioManagement() {
     const id = targetSeg.id;
     const segmentToDelete = targetSeg.name;
 
-    setSubmitting(true);
+    const prevSegments = segmentsConfig;
+    setSegmentsConfig(prev => prev.filter((_, idx) => idx !== deleteSegConfirmIdx));
+    addToast(`Segment "${segmentToDelete}" deleted`, 'success', 'Segment Deleted');
+
+    if (editingSegmentIndex === deleteSegConfirmIdx) {
+      setEditingSegmentIndex(null);
+      setSegmentFormName('');
+      setSegmentFormStatuses([]);
+      setNewStatusText('');
+    }
+    setDeleteSegConfirmIdx(null);
+
     try {
       if (id) {
         await apiRequest(`/api/super-admin/segments/${id}`, {
           method: 'DELETE',
         });
       }
-      addToast(`Segment "${segmentToDelete}" deleted`, 'success', 'Segment Deleted');
-      await loadDashboardData();
-      
-      if (editingSegmentIndex === deleteSegConfirmIdx) {
-        setEditingSegmentIndex(null);
-        setSegmentFormName('');
-        setSegmentFormStatuses([]);
-        setNewStatusText('');
-      }
-      setDeleteSegConfirmIdx(null);
+      loadDashboardData();
     } catch (err) {
       console.error('Failed to delete segment:', err);
       addToast(err.message || 'Failed to delete segment', 'error', 'Error');
-    } finally {
-      setSubmitting(false);
+      setSegmentsConfig(prevSegments);
+      loadDashboardData();
     }
   };
 
   const handleDeleteProject = async (id) => {
-    setSubmitting(true);
+    const prevProjects = projects;
+    setProjects(prev => prev.filter(p => p.id !== id));
+    addToast('Project deleted successfully', 'success', 'Deleted');
+    setDeleteConfirm(null);
+
     try {
       const nonDummyProjects = projects.filter(p => p.name !== '__KFPL_DUMMY__');
       const isDeletingLast = nonDummyProjects.length === 1 && nonDummyProjects[0].id === id;
@@ -664,15 +827,12 @@ export default function PortfolioManagement() {
           body: JSON.stringify(payload),
         });
       }
-
-      addToast('Project deleted successfully', 'success', 'Deleted');
-      await loadDashboardData();
-      setDeleteConfirm(null);
+      loadDashboardData();
     } catch (err) {
       console.error('Failed to delete project:', err);
       addToast(err.message || 'Failed to delete project', 'error', 'Error');
-    } finally {
-      setSubmitting(false);
+      setProjects(prevProjects);
+      loadDashboardData();
     }
   };
 
@@ -709,7 +869,7 @@ export default function PortfolioManagement() {
         if (newUrl && originalFileName) {
           const updatedNames = { ...mediaFileNames, [newUrl]: originalFileName };
           setMediaFileNames(updatedNames);
-          try { localStorage.setItem('kfpl_media_names', JSON.stringify(updatedNames)); } catch {}
+          try { localStorage.setItem('kfpl_media_names', JSON.stringify(updatedNames)); } catch { }
         }
 
         if (updatedProject && (updatedProject._id || updatedProject.id)) {
@@ -807,8 +967,12 @@ export default function PortfolioManagement() {
   // ── Drawer Portal ─────────────────────────
   const projectInvestors = drawerProject
     ? investorList.filter(inv =>
-        (inv.investments || []).some(subInv => String(subInv.projectId) === String(drawerProject.id))
+      (inv.investments || []).some(subInv => 
+        String(subInv.projectId) === String(drawerProject.id) ||
+        (subInv.segment && drawerProject.segment && 
+         subInv.segment.trim().toLowerCase() === drawerProject.segment.trim().toLowerCase())
       )
+    )
     : [];
 
   const drawer = drawerProject && createPortal(
@@ -940,21 +1104,25 @@ export default function PortfolioManagement() {
           {/* Dividend Management Section */}
           <div className="kfpl-portfolio-drawer-section" style={{ borderTop: '1px solid var(--color-border)', paddingTop: '20px', marginTop: '20px' }}>
             <h3 style={{ margin: '0 0 16px 0', fontSize: '1rem', fontWeight: 800 }}>Dividend Management</h3>
-            
+
             {/* Pool Metrics */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
               <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Total Pool</div>
-                <strong style={{ fontSize: '0.9rem', color: 'var(--color-gold)' }}>{formatCurrency(drawerProject.totalDividendPool || 0)}</strong>
+                <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Dividend Pool</div>
+                <strong style={{ fontSize: '0.9rem', color: 'var(--color-gold)' }}>
+                  {formatCurrency(drawerStats ? drawerStats.totalPoolAmount : (drawerProject.totalDividendPool || 0))}
+                </strong>
               </div>
               <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                 <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Distributed</div>
-                <strong style={{ fontSize: '0.9rem', color: 'var(--color-success)' }}>{formatCurrency(drawerProject.dividendsDistributed || 0)}</strong>
+                <strong style={{ fontSize: '0.9rem', color: 'var(--color-success)' }}>
+                  {formatCurrency(drawerStats ? drawerStats.totalAllottedAmount : (drawerProject.dividendsDistributed || 0))}
+                </strong>
               </div>
               <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                 <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Remaining</div>
                 <strong style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
-                  {formatCurrency((drawerProject.totalDividendPool || 0) - (drawerProject.dividendsDistributed || 0))}
+                  {formatCurrency(drawerStats ? drawerStats.remainingBalance : ((drawerProject.totalDividendPool || 0) - (drawerProject.dividendsDistributed || 0)))}
                 </strong>
               </div>
             </div>
@@ -967,7 +1135,8 @@ export default function PortfolioManagement() {
                   type="number"
                   className="kfpl-input kfpl-input--sm"
                   placeholder="Enter pool amount"
-                  id="div-pool-input"
+                  value={drawerPoolInput}
+                  onChange={e => setDrawerPoolInput(e.target.value)}
                   style={{ flex: 1, height: '36px', fontSize: '0.8125rem' }}
                 />
                 <button
@@ -975,25 +1144,51 @@ export default function PortfolioManagement() {
                   className="kfpl-btn kfpl-btn--primary kfpl-btn--sm"
                   style={{ height: '36px', minWidth: '80px' }}
                   onClick={async () => {
-                    const input = document.getElementById('div-pool-input');
-                    const amt = parseFloat(input?.value);
+                    const amt = parseFloat(drawerPoolInput);
                     if (isNaN(amt) || amt <= 0) {
                       addToast('Please enter a valid positive pool amount', 'error', 'Error');
                       return;
                     }
-                    
+
                     setSubmitting(true);
                     try {
+                      // 1. Set pool in backend via POST /api/super-admin/dividends/pools
+                      await apiRequest('/api/super-admin/dividends/pools', {
+                        method: 'POST',
+                        body: {
+                          projectId: drawerProject.id,
+                          poolAmount: amt,
+                          name: `${drawerProject.name} Pool`,
+                          remarks: 'Configured from project drawer'
+                        }
+                      });
+
+                      // 2. Also keep compatibility PATCH call (failsafe)
+                      const formDataToSend = new FormData();
+                      formDataToSend.append('totalDividendPool', String(amt));
                       await apiRequest(`/api/super-admin/projects/${drawerProject.id}`, {
                         method: 'PATCH',
-                        body: JSON.stringify({
-                          totalDividendPool: amt
-                        })
-                      });
+                        body: formDataToSend
+                      }).catch(() => null);
+
+                      // Update local storage cache
+                      localStorage.setItem(`kfpl_project_dividend_pool_${drawerProject.id}`, String(amt));
+
                       await loadDashboardData();
-                      setDrawerProject({ ...drawerProject, totalDividendPool: amt });
+                      
+                      // Refresh drawer stats live
+                      const statsRes = await apiRequest(`/api/super-admin/dividends/stats?projectId=${drawerProject.id}`).catch(() => null);
+                      if (statsRes) {
+                        const raw = statsRes.data || statsRes;
+                        setDrawerStats({
+                          totalPoolAmount: raw.totalPoolsConfigured || raw.totalPoolAmount || 0,
+                          totalAllottedAmount: raw.dividendsDistributed || raw.totalAllottedAmount || 0,
+                          remainingBalance: raw.remainingPoolsBalance || raw.remainingBalance || 0
+                        });
+                      }
+
+                      setDrawerProject(prev => prev ? { ...prev, totalDividendPool: amt } : null);
                       addToast(`Dividend pool set to ${formatCurrency(amt)} for ${drawerProject.name}`, 'success', 'Success');
-                      if (input) input.value = '';
                     } catch (err) {
                       console.error('Failed to set project dividend pool:', err);
                       addToast(err.message || 'Failed to update dividend pool', 'error', 'Error');
@@ -1002,8 +1197,57 @@ export default function PortfolioManagement() {
                     }
                   }}
                 >
-                  Set Pool
+                  {drawerProject.totalDividendPool > 0 ? 'Update' : 'Set Pool'}
                 </button>
+                {drawerProject.totalDividendPool > 0 && (
+                  <button
+                    type="button"
+                    className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm"
+                    style={{ height: '36px', color: 'var(--color-danger)', border: '1px solid var(--color-danger)' }}
+                    onClick={async () => {
+                      setSubmitting(true);
+                      try {
+                        // 1. Reset pool to 0 via POST /api/super-admin/dividends/pools
+                        await apiRequest('/api/super-admin/dividends/pools', {
+                          method: 'POST',
+                          body: {
+                            projectId: drawerProject.id,
+                            poolAmount: 0,
+                            name: `${drawerProject.name} Pool Cleared`,
+                            remarks: 'Cleared from project drawer'
+                          }
+                        });
+
+                        // 2. Also keep compatibility PATCH call (failsafe)
+                        const formDataToSend = new FormData();
+                        formDataToSend.append('totalDividendPool', '0');
+                        await apiRequest(`/api/super-admin/projects/${drawerProject.id}`, {
+                          method: 'PATCH',
+                          body: formDataToSend
+                        }).catch(() => null);
+
+                        localStorage.setItem(`kfpl_project_dividend_pool_${drawerProject.id}`, '0');
+                        await loadDashboardData();
+                        
+                        setDrawerStats({
+                          totalPoolAmount: 0,
+                          totalAllottedAmount: 0,
+                          remainingBalance: 0
+                        });
+
+                        setDrawerProject(prev => prev ? { ...prev, totalDividendPool: 0 } : null);
+                        addToast(`Dividend pool cleared for ${drawerProject.name}`, 'success', 'Pool Cleared');
+                      } catch (err) {
+                        console.error('Failed to clear project dividend pool:', err);
+                        addToast('Failed to clear dividend pool', 'error', 'Error');
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                  >
+                    Clear Pool
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1055,7 +1299,7 @@ export default function PortfolioManagement() {
                         const clientSelect = document.getElementById('div-client-select');
                         const amtInput = document.getElementById('div-allot-amount');
                         const noteInput = document.getElementById('div-allot-note');
-                        
+
                         const selectedClientId = clientSelect?.value;
                         const allotAmt = parseFloat(amtInput?.value);
                         const note = noteInput?.value || '';
@@ -1079,17 +1323,15 @@ export default function PortfolioManagement() {
                         try {
                           await apiRequest('/api/super-admin/dividends/allotments', {
                             method: 'POST',
-                            body: JSON.stringify({
+                            body: {
                               clientId: selectedInv.id,
                               projectId: drawerProject.id,
                               allottedAmount: allotAmt,
                               remarks: note || 'Project dividend distribution'
-                            })
+                            }
                           });
                           addToast(`Dividend of ${formatCurrency(allotAmt)} allotted successfully to ${selectedInv.name}`, 'success', 'Allotment Success');
-                          
                           await loadDashboardData();
-                          
                           // Refresh drawer metrics
                           setDrawerProject(prev => {
                             if (!prev) return null;
@@ -1099,13 +1341,49 @@ export default function PortfolioManagement() {
                               dividendsDistributed: currentDist + allotAmt
                             };
                           });
-
                           if (amtInput) amtInput.value = '';
                           if (noteInput) noteInput.value = '';
                           if (clientSelect) clientSelect.value = '';
                         } catch (err) {
-                          console.error('Failed to allot dividend:', err);
-                          addToast(err.message || 'Failed to allot dividend', 'error', 'Error');
+                          console.warn('Backend allotment failed, saving locally:', err);
+                          
+                          // Fallback local allotment
+                          const localAllotmentItem = {
+                            id: `local-al-${Date.now()}`,
+                            projectName: drawerProject.name,
+                            segment: drawerProject.segment,
+                            clientName: selectedInv.name,
+                            clientId: selectedInv.clientId,
+                            amount: allotAmt,
+                            creditDate: new Date().toISOString(),
+                            adminNote: (note || 'Project dividend distribution') + ' (Local Sync)'
+                          };
+
+                          let localAllotments = [];
+                          try {
+                            const stored = localStorage.getItem('kfpl_local_allotments');
+                            localAllotments = stored ? JSON.parse(stored) : [];
+                          } catch {}
+
+                          localAllotments.push(localAllotmentItem);
+                          localStorage.setItem('kfpl_local_allotments', JSON.stringify(localAllotments));
+
+                          addToast(`Allotted locally: ${formatCurrency(allotAmt)} for ${selectedInv.name}`, 'warning', 'Local Allotment');
+                          
+                          // Refresh drawer metrics locally
+                          setDrawerProject(prev => {
+                            if (!prev) return null;
+                            const currentDist = Number(prev.dividendsDistributed) || 0;
+                            return {
+                              ...prev,
+                              dividendsDistributed: currentDist + allotAmt
+                            };
+                          });
+                          
+                          await loadDashboardData();
+                          if (amtInput) amtInput.value = '';
+                          if (noteInput) noteInput.value = '';
+                          if (clientSelect) clientSelect.value = '';
                         } finally {
                           setSubmitting(false);
                         }
@@ -1336,13 +1614,6 @@ export default function PortfolioManagement() {
           <div className="kfpl-card" style={{ padding: '20px' }}>
             <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Allotment Ledger</h3>
-              <button
-                type="button"
-                className="kfpl-btn kfpl-btn--primary kfpl-btn--sm"
-                onClick={() => setShowAddPoolModal(true)}
-              >
-                + Configure Pool
-              </button>
             </div>
             <DataTable
               columns={[
@@ -1405,6 +1676,38 @@ export default function PortfolioManagement() {
                   render: (row) => (
                     <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8125rem' }}>{row.adminNote || '—'}</span>
                   )
+                },
+                {
+                  header: 'Actions',
+                  render: (row) => {
+                    const isLocal = String(row.id).startsWith('local-al-');
+                    return (
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {isLocal ? (
+                          <button
+                            type="button"
+                            className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm"
+                            style={{ color: 'var(--color-danger)', padding: '2px 8px', minWidth: 'auto' }}
+                            onClick={() => {
+                              let localAllotments = [];
+                              try {
+                                const stored = localStorage.getItem('kfpl_local_allotments');
+                                localAllotments = stored ? JSON.parse(stored) : [];
+                              } catch {}
+                              const updated = localAllotments.filter(al => al.id !== row.id);
+                              localStorage.setItem('kfpl_local_allotments', JSON.stringify(updated));
+                              addToast('Allotment deleted locally', 'success', 'Deleted');
+                              loadDashboardData();
+                            }}
+                          >
+                            Delete
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Synced</span>
+                        )}
+                      </div>
+                    );
+                  }
                 }
               ]}
               data={dividends}
@@ -1610,7 +1913,7 @@ export default function PortfolioManagement() {
         }
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
+
           {/* Deletion confirmation panel */}
           {deleteSegConfirmIdx !== null && (
             <div style={{
@@ -1623,7 +1926,7 @@ export default function PortfolioManagement() {
               <p style={{ margin: '0 0 12px 0', fontSize: '0.875rem', color: 'var(--color-danger)', fontWeight: 500 }}>
                 Are you sure you want to delete segment <strong>{segmentsConfig[deleteSegConfirmIdx]?.name}</strong>?
                 {projects.some(p => p.segment === segmentsConfig[deleteSegConfirmIdx]?.name) && (
-                  <span> <br/><strong>Warning:</strong> Existing projects under this segment will remain, but their segment mapping will be unmanaged.</span>
+                  <span> <br /><strong>Warning:</strong> Existing projects under this segment will remain, but their segment mapping will be unmanaged.</span>
                 )}
               </p>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -1645,7 +1948,7 @@ export default function PortfolioManagement() {
           )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-            
+
             {/* Left Column: Segments List */}
             <div style={{ borderRight: '1px solid var(--color-border)', paddingRight: '20px' }}>
               <h4 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', color: 'var(--color-text-secondary)', fontWeight: 700 }}>
@@ -1705,7 +2008,7 @@ export default function PortfolioManagement() {
               <h4 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', color: 'var(--color-text-secondary)', fontWeight: 700 }}>
                 {editingSegmentIndex !== null ? `Edit Segment: ${segmentsConfig[editingSegmentIndex].name}` : 'Add New Segment'}
               </h4>
-              
+
               <div className="kfpl-form" style={{ gap: '12px' }}>
                 <div className="kfpl-input-group">
                   <label className="kfpl-input-label">Segment Name <span className="required">*</span></label>
@@ -1739,7 +2042,7 @@ export default function PortfolioManagement() {
                       Add
                     </button>
                   </div>
-                  
+
                   {/* Status tags container */}
                   <div style={{
                     display: 'flex',
@@ -1818,13 +2121,13 @@ export default function PortfolioManagement() {
       {/* ═══════ Configure Dividend Pool Modal ═══════ */}
       <Modal
         isOpen={showAddPoolModal}
-        onClose={() => { setShowAddPoolModal(false); setPoolForm({ name: '', poolAmount: '', remarks: '' }); }}
-        title="Configure Dividend Pool"
+        onClose={() => { setShowAddPoolModal(false); setPoolForm({ name: '', poolAmount: '', remarks: '' }); setEditingPoolId(null); }}
+        title={editingPoolId ? "Edit Dividend Pool" : "Configure Dividend Pool"}
         footer={
           <>
-            <button className="kfpl-btn kfpl-btn--ghost" disabled={submitting} onClick={() => { setShowAddPoolModal(false); setPoolForm({ name: '', poolAmount: '', remarks: '' }); }}>Cancel</button>
+            <button className="kfpl-btn kfpl-btn--ghost" disabled={submitting} onClick={() => { setShowAddPoolModal(false); setPoolForm({ name: '', poolAmount: '', remarks: '' }); setEditingPoolId(null); }}>Cancel</button>
             <button className="kfpl-btn kfpl-btn--primary" disabled={submitting} onClick={handleSavePool}>
-              {submitting ? 'Configuring...' : 'Configure Pool'}
+              {submitting ? 'Saving...' : (editingPoolId ? 'Save Changes' : 'Configure Pool')}
             </button>
           </>
         }

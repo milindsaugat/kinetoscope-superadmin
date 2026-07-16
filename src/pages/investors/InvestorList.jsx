@@ -79,8 +79,18 @@ export default function InvestorList() {
   };
 
   useEffect(() => {
+    // --- SWR Cache Initialization for Instant Load (0ms) ---
+    try {
+      const cacheData = localStorage.getItem('kfpl_super_admin_clients_cache');
+      if (cacheData) {
+        setClients(JSON.parse(cacheData));
+        setLoading(false);
+      }
+    } catch (e) {
+      console.warn('Failed to parse clients cache:', e);
+    }
+
     const fetchClients = async () => {
-      setLoading(true);
       try {
         const [res, agentsRes] = await Promise.all([
           apiRequest('/api/super-admin/clients'),
@@ -96,16 +106,14 @@ export default function InvestorList() {
         const list = res.data?.clients || res.data || res.clients || [];
         if (Array.isArray(list)) {
           console.log('Fetched raw clients:', list);
+          const MOCK_NAMES = ['John Doe', 'Sunil Verma', 'Kavita Reddy', 'Amit Joshi', 'Meera Iyer', 'Suresh Patel'];
           
           const cleanRawList = list.filter(c => {
             if (!c || typeof c !== 'object') return false;
             const profile = c.profile || {};
-            const header = c.header || {};
-            const user = (c.userId && typeof c.userId === 'object' ? c.userId : null) || 
-                         (c.user && typeof c.user === 'object' ? c.user : null) || {};
-            const name = profile.fullName || user.name || user.fullName || c.fullName || header.clientName || c.name || profile.name || '';
-            const email = profile.email || user.email || c.email || '';
-            return name.trim() !== '' || email.trim() !== '';
+            const user = c.userId || c.user || {};
+            const name = profile.fullName || user.name || c.fullName || c.name || '';
+            return name.trim() !== '' && !MOCK_NAMES.includes(name.trim());
           });
 
 
@@ -179,6 +187,7 @@ export default function InvestorList() {
           });
 
           setClients(normalized);
+          localStorage.setItem('kfpl_super_admin_clients_cache', JSON.stringify(normalized));
         } else {
           setClients([]);
         }

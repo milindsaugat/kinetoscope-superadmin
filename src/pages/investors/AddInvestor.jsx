@@ -241,9 +241,22 @@ export default function AddInvestor() {
       if (response.ok) {
         addToast(`Client "${form.fullName}" registered successfully!`, 'success', 'Client Added');
         
-        // Also push to local mock data array so UI is instantly updated
         const newId = investors.length > 0 ? Math.max(...investors.map(i => i.id)) + 1 : 1;
-        const clientId = resData.data?.header?.clientCode || `KFPL-${1000 + newId}`;
+        const rawClientId = resData.data?.header?.clientCode || `KFPL-CL-${1000 + newId}`;
+        let clientId = rawClientId;
+        if (rawClientId) {
+          const str = String(rawClientId).trim();
+          if (/^KFPL-CL-\d+$/i.test(str)) {
+            clientId = str.toUpperCase();
+          } else {
+            const digitsMatch = str.match(/\d+/);
+            if (digitsMatch) {
+              let val = parseInt(digitsMatch[0], 10);
+              if (val < 1000) val = 1000 + val;
+              clientId = `KFPL-CL-${val}`;
+            }
+          }
+        }
         const newClient = {
           id: newId,
           name: form.fullName,

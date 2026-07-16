@@ -34,8 +34,18 @@ export default function AgentList() {
   };
 
   useEffect(() => {
+    // --- SWR Cache Initialization for Instant Load (0ms) ---
+    try {
+      const cacheData = localStorage.getItem('kfpl_super_admin_agents_cache');
+      if (cacheData) {
+        setAgentsList(JSON.parse(cacheData));
+        setLoading(false);
+      }
+    } catch (e) {
+      console.warn('Failed to parse agents cache:', e);
+    }
+
     const fetchAgents = async () => {
-      setLoading(true);
       try {
         const data = await apiRequest('/api/super-admin/agents');
         
@@ -78,6 +88,7 @@ export default function AgentList() {
           });
 
           setAgentsList(normalized);
+          localStorage.setItem('kfpl_super_admin_agents_cache', JSON.stringify(normalized));
         } else {
           setAgentsList([]);
         }

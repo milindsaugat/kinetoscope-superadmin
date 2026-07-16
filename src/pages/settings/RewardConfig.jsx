@@ -177,17 +177,36 @@ export default function RewardConfig() {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this reward definition?')) {
-      try {
-        await apiRequest(`/api/super-admin/rewards/${id}`, {
-          method: 'DELETE'
-        });
-        addToast('Reward definition deleted successfully', 'success', 'Reward Deleted');
-        fetchRewards();
-      } catch (err) {
-        console.error('Failed to delete reward:', err);
-        addToast(err.message || 'Failed to delete reward', 'danger', 'Error');
+    const prevRewards = rewards;
+    setRewards(prev => prev.filter(r => r.id !== id));
+    addToast('Reward definition deleted successfully', 'success', 'Reward Deleted');
+
+    try {
+      await apiRequest(`/api/super-admin/rewards/${id}`, {
+        method: 'DELETE'
+      });
+      // Silent sync
+      const res = await apiRequest('/api/super-admin/rewards').catch(() => null);
+      if (res) {
+        const rawRewards = res.data?.rewards || res.rewards || res.data || [];
+        const mapped = rawRewards.map(r => ({
+          id: r._id || r.id,
+          targetDescription: r.targetMilestoneDescription || '',
+          targetType: r.targetMetricType || 'Clients Count',
+          targetValue: r.targetThresholdValue || '',
+          targetDays: r.targetLimitDays || '',
+          targetMonths: r.targetLimitMonths || '',
+          rewardDescription: r.rewardDescription || '',
+          imageUrl: r.rewardImage || '',
+          videoUrl: r.videoUrl || '',
+          isActive: r.isActive !== undefined ? r.isActive : true
+        }));
+        setRewards(mapped);
       }
+    } catch (err) {
+      console.error('Failed to delete reward:', err);
+      addToast(err.message || 'Failed to delete reward', 'danger', 'Error');
+      setRewards(prevRewards);
     }
   };
 
@@ -244,7 +263,10 @@ export default function RewardConfig() {
     e.target.value = '';
   };
 
+  const [savingReward, setSavingReward] = useState(false);
+
   const handleSave = async () => {
+    if (savingReward) return;
     if (!form.targetDescription.trim()) {
       alert('Target Description is required.');
       return;
@@ -262,6 +284,7 @@ export default function RewardConfig() {
     const days = parseInt(form.targetDays) || '';
     const months = parseInt(form.targetMonths) || '';
 
+    setSavingReward(true);
     try {
       const formData = new FormData();
       formData.append('targetMetricType', form.targetType);
@@ -297,6 +320,8 @@ export default function RewardConfig() {
     } catch (err) {
       console.error('Failed to save reward:', err);
       addToast(err.message || 'Failed to save reward', 'danger', 'Error');
+    } finally {
+      setSavingReward(false);
     }
   };
 
@@ -590,8 +615,10 @@ export default function RewardConfig() {
         title={modalType === 'add' ? 'Define New Performance Reward' : 'Edit Reward Definition'}
         footer={
           <>
-            <button className="kfpl-btn kfpl-btn--ghost" onClick={() => setShowModal(false)}>Cancel</button>
-            <button className="kfpl-btn kfpl-btn--primary" onClick={handleSave}>Save Reward</button>
+            <button className="kfpl-btn kfpl-btn--ghost" onClick={() => setShowModal(false)} disabled={savingReward}>Cancel</button>
+            <button className="kfpl-btn kfpl-btn--primary" onClick={handleSave} disabled={savingReward}>
+              {savingReward ? 'Saving...' : 'Save Reward'}
+            </button>
           </>
         }
       >

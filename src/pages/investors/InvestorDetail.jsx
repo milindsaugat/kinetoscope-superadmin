@@ -474,8 +474,25 @@ export default function InvestorDetail() {
 
   // ── API 2: Fetch client details & tab data on mount concurrently ─────
   useEffect(() => {
+    // --- SWR Cache Initialization for Instant Load (0ms) ---
+    try {
+      const cacheData = localStorage.getItem(`kfpl_super_admin_client_detail_cache_${id}`);
+      if (cacheData) {
+        const parsed = JSON.parse(cacheData);
+        if (parsed.investor) setInvestor(parsed.investor);
+        if (parsed.investmentsData) setInvestmentsData(parsed.investmentsData);
+        if (parsed.roiData) setRoiData(parsed.roiData);
+        if (parsed.perksData) setPerksData(parsed.perksData);
+        if (parsed.docsData) setDocsData(parsed.docsData);
+        if (parsed.verifiedDocs) setVerifiedDocs(parsed.verifiedDocs);
+        if (parsed.clientProfileId) setClientProfileId(parsed.clientProfileId);
+        setLoading(false);
+      }
+    } catch (e) {
+      console.warn('Failed to parse client detail cache:', e);
+    }
+
     const fetchAllClientData = async () => {
-      setLoading(true);
       try {
         const clientRes = await apiRequest(`/api/super-admin/clients/${id}`).catch(err => {
           console.error('Failed to fetch client profile details:', err);
@@ -527,6 +544,7 @@ export default function InvestorDetail() {
           });
         }
 
+        let inv = null;
         if (clientRes) {
           const data = clientRes.data || clientRes;
           const profile = data.profile || data;
@@ -538,8 +556,7 @@ export default function InvestorDetail() {
             kycStatus = 'VERIFIED';
           }
 
-          // Normalize into a flat investor object for the UI
-          const inv = {
+          inv = {
             _id: id,
             name: header.clientName || profile.fullName || profile.name || '',
             clientId: formatClientID(header.clientCode || profile.clientCode || profile.clientId || ''),
@@ -589,6 +606,7 @@ export default function InvestorDetail() {
           setInvestmentsData({ investments: [] });
         }
 
+        let clientRoiHistory = [];
         if (roiRes) {
           const data = roiRes.data || roiRes;
           let extractedPayouts = [];
@@ -600,7 +618,7 @@ export default function InvestorDetail() {
             extractedPayouts = data.list;
           }
 
-          const clientRoiHistory = extractedPayouts.filter(r => {
+          clientRoiHistory = extractedPayouts.filter(r => {
             const recId = r.recipientId || r.investorId || r.clientId || '';
             return String(recId) === String(profileId) || String(recId) === String(id);
           }).map(r => ({
@@ -630,6 +648,19 @@ export default function InvestorDetail() {
           setVerifiedDocs(verifiedMap);
         } else {
           setDocsData({ documents: [] });
+        }
+
+        // Save fresh values to SWR Cache
+        if (inv) {
+          localStorage.setItem(`kfpl_super_admin_client_detail_cache_${id}`, JSON.stringify({
+            investor: inv,
+            investmentsData: investmentsRes ? (investmentsRes.data || investmentsRes) : { investments: [] },
+            roiData: { roiHistory: clientRoiHistory },
+            perksData: perksRes ? (perksRes.data || perksRes) : { perks: [] },
+            docsData: docsRes ? (docsRes.data || docsRes) : { documents: [] },
+            verifiedDocs: verifiedMap,
+            clientProfileId: profileId
+          }));
         }
 
       } catch (err) {

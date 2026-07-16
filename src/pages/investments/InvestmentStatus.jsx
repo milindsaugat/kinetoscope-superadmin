@@ -539,6 +539,15 @@ export default function InvestmentStatus() {
   };
 
   const handleRemoveMedia = async (itemId, mediaId) => {
+    // Optimistically update the UI state immediately
+    setStatusUpdates(prev => prev.map(item => {
+      if (item.id === itemId) {
+        return { ...item, media: (item.media || []).filter(m => m.id !== mediaId) };
+      }
+      return item;
+    }));
+    addToast('Media removed successfully', 'success', 'Success');
+
     try {
       await apiRequest(`/api/super-admin/projects/${itemId}/media`, {
         method: 'DELETE',
@@ -546,11 +555,11 @@ export default function InvestmentStatus() {
           url: mediaId
         })
       });
-      addToast('Media removed successfully', 'success', 'Success');
-      await loadDashboardData();
+      loadDashboardData(); // Sync in background
     } catch (err) {
       console.error('Failed to remove media:', err);
       addToast(err.message || 'Failed to remove media', 'error', 'Error');
+      loadDashboardData(); // Revert/sync on error
     }
   };
 
