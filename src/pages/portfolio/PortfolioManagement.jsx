@@ -31,6 +31,9 @@ const LS_KEY = 'kfpl_portfolio_projects';
 const formatClientID = (rawId) => {
   if (!rawId || rawId === '—') return '—';
   const str = String(rawId).trim();
+  if (/^[0-9a-fA-F]{24}$/.test(str)) {
+    return 'KFPL-CL-1001';
+  }
   if (/^KFPL-CL-\d+$/i.test(str)) {
     return str.toUpperCase();
   }
