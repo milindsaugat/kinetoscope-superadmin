@@ -83,9 +83,28 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // --- SWR Cache Initialization for Instant Load (0ms) ---
+    try {
+      const cacheData = localStorage.getItem('kfpl_super_admin_dashboard_cache');
+      if (cacheData) {
+        const parsed = JSON.parse(cacheData);
+        if (parsed.stats) setStats(parsed.stats);
+        if (parsed.investorsRanked) setInvestorsRanked(parsed.investorsRanked);
+        if (parsed.segments) setSegments(parsed.segments);
+        if (parsed.investmentStatus) setInvestmentStatus(parsed.investmentStatus);
+        if (parsed.investmentFlow) setInvestmentFlow(parsed.investmentFlow);
+        if (parsed.agentContribution) setAgentContribution(parsed.agentContribution);
+        if (parsed.agentsRanked) setAgentsRanked(parsed.agentsRanked);
+        if (parsed.roiTrend) setRoiTrend(parsed.roiTrend);
+        if (parsed.activities) setActivities(parsed.activities);
+        setLoading(false);
+      }
+    } catch (e) {
+      console.warn('Failed to parse super admin dashboard cache:', e);
+    }
+
     const fetchDashboard = async () => {
       try {
-        setLoading(true);
         const [res, clientsRes, investmentsRes, payoutsRes] = await Promise.all([
           apiRequest('/api/super-admin/dashboard').catch(() => null),
           apiRequest('/api/super-admin/clients').catch(() => null),
@@ -99,6 +118,15 @@ export default function Dashboard() {
         let realTotalInvestmentAmt = 0;
         let realTotalInvestorsCount = 0;
         let realTotalRoiPaid = 0;
+
+        let computedInvestors = [];
+        let computedSegments = [];
+        let computedInvestmentStatus = [];
+        let computedInflow = [];
+        let computedContribution = [];
+        let computedAgentsRanked = [];
+        let computedRoiTrend = [];
+        let mappedActivities = [];
 
         // 1. Process Top Investors dynamically from clients list
         if (clientsRes) {
@@ -122,7 +150,7 @@ export default function Dashboard() {
             });
 
             // Set Top Investors dynamically from the real database clients list
-            const computedInvestors = sortedClients.slice(0, 5).map((c, i) => {
+            computedInvestors = sortedClients.slice(0, 5).map((c, i) => {
               const profile = c.profile || {};
               const user = c.userId || c.user || {};
               const amount = c.totalInvestment || c.profile?.totalInvestment || c.summaryCards?.totalInvestment || c.profile?.totalPortfolioValue || 0;
@@ -176,7 +204,7 @@ export default function Dashboard() {
             }
           });
 
-          const computedSegments = Object.keys(segmentSums).map(segName => ({
+          computedSegments = Object.keys(segmentSums).map(segName => ({
             segment: segName,
             value: grandTotal > 0 ? Math.round((segmentSums[segName] / grandTotal) * 100) : 0,
             amount: segmentSums[segName]
@@ -193,11 +221,12 @@ export default function Dashboard() {
             else statusCounts.Active++;
           });
           const totalStatus = statusCounts.Active + statusCounts.Pending + statusCounts.Closed;
-          setInvestmentStatus([
+          computedInvestmentStatus = [
             { status: 'Active', count: statusCounts.Active, percentage: totalStatus > 0 ? Math.round((statusCounts.Active / totalStatus) * 100) : 0, color: '#10B981' },
             { status: 'Pending', count: statusCounts.Pending, percentage: totalStatus > 0 ? Math.round((statusCounts.Pending / totalStatus) * 100) : 0, color: '#F59E0B' },
             { status: 'Closed', count: statusCounts.Closed, percentage: totalStatus > 0 ? Math.round((statusCounts.Closed / totalStatus) * 100) : 0, color: '#EF4444' }
-          ]);
+          ];
+          setInvestmentStatus(computedInvestmentStatus);
 
           // Calculate Monthly Inflow & Outflow Trend
           const monthlyInflow = {};
@@ -214,7 +243,7 @@ export default function Dashboard() {
             }
           });
           const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-          const computedInflow = monthOrder.map(m => ({
+          computedInflow = monthOrder.map(m => ({
             month: m,
             investments: monthlyInflow[m] || 0,
             withdrawals: monthlyOutflow[m] || 0
@@ -235,14 +264,14 @@ export default function Dashboard() {
               agentSums[agentName] = (agentSums[agentName] || 0) + amount;
             }
           });
-          const computedContribution = Object.keys(agentSums).map(name => ({
+          computedContribution = Object.keys(agentSums).map(name => ({
             name,
             amount: agentSums[name],
             clients: 0
           })).sort((a, b) => b.amount - a.amount);
           setAgentContribution(computedContribution);
 
-          const computedAgentsRanked = computedContribution.map((a, i) => ({
+          computedAgentsRanked = computedContribution.map((a, i) => ({
             id: i,
             name: a.name,
             agentId: `AGT-${String(i+1).padStart(3, '0')}`,
@@ -280,7 +309,7 @@ export default function Dashboard() {
             }
           });
           const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-          const computedRoiTrend = monthOrder.map(m => ({
+          computedRoiTrend = monthOrder.map(m => ({
             month: m,
             amount: monthlyRoiSums[m] || 0
           }));
@@ -289,8 +318,9 @@ export default function Dashboard() {
         }
 
         // 4. Update core stats reactively
+        let freshStats = {};
         if (data) {
-          setStats({
+          freshStats = {
             totalInvestors: realTotalInvestorsCount,
             investorChange: data.investorChange ?? data.stats?.investorChange ?? 0,
             totalInvestment: realTotalInvestmentAmt,
@@ -301,18 +331,34 @@ export default function Dashboard() {
             agentChange: data.agentChange ?? data.stats?.agentChange ?? 0,
             pendingApprovals: data.pendingApprovals ?? data.stats?.pendingApprovals ?? data.pendingCount ?? 0,
             activeInvestments: realActiveInvestmentsCount,
-          });
+          };
+          setStats(freshStats);
 
           // Recent Activity
           const ensureArray = (val, fallback = []) => Array.isArray(val) ? val : fallback;
           const rawActivity = ensureArray(data.recentActivity || data.activities || data.recentActivities);
-          setActivities(rawActivity.map(item => ({
+          mappedActivities = rawActivity.map(item => ({
             id: item.id || item._id || Math.random(),
             text: item.text || item.message || '',
             type: item.type || 'info',
             time: item.time || item.createdAt || 'Just now'
-          })));
+          }));
+          setActivities(mappedActivities);
         }
+
+        // Save fresh calculations to SWR Cache
+        localStorage.setItem('kfpl_super_admin_dashboard_cache', JSON.stringify({
+          stats: freshStats,
+          investorsRanked: computedInvestors,
+          segments: computedSegments,
+          investmentStatus: computedInvestmentStatus,
+          investmentFlow: computedInflow,
+          agentContribution: computedContribution,
+          agentsRanked: computedAgentsRanked,
+          roiTrend: computedRoiTrend,
+          activities: mappedActivities
+        }));
+
       } catch (err) {
         console.error('Failed to fetch super-admin dashboard:', err);
       } finally {
