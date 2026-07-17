@@ -28,9 +28,10 @@ const formatClientID = (rawId) => {
 
 /* ── helpers for downloading statements ─────────────────────── */
 function downloadClientROISingleCSV(roi, client) {
+  const cName = client.name || client.fullName || 'Client';
   const rows = [
     ['ROI Payout Statement'],
-    ['Client Name', client.name],
+    ['Client Name', cName],
     ['Client ID', client.clientId],
     ['Period / Month', roi.month],
     ['Payout Date', new Date(roi.paidAt || roi.date || new Date()).toLocaleDateString('en-IN')],
@@ -42,34 +43,57 @@ function downloadClientROISingleCSV(roi, client) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `ROI_Statement_${roi.month.replace(/\s/g, '_')}_${client.name.replace(/\s/g, '_')}.csv`;
+  link.download = `ROI_Statement_${roi.month.replace(/\s/g, '_')}_${cName.replace(/\s/g, '_')}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
 
 function downloadClientROISinglePDF(roi, client) {
+  const cName = client.name || client.fullName || 'Client';
   const dateStr = new Date(roi.paidAt || roi.date || new Date()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   const investments = client.investments || [];
 
+  const formatDateStr = (dateVal) => {
+    if (!dateVal || dateVal === '—' || dateVal === '-') return '—';
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return dateVal;
+      return d.toLocaleDateString('en-IN');
+    } catch (e) {
+      return dateVal;
+    }
+  };
+
   const rowsHtml = investments.map(inv => {
-    const monthlyROI = Math.round((inv.amount * (inv.roi || client.roiPercentage || 1)) / 100);
+    const amt = inv.investmentAmount || inv.amount || 0;
+    const rate = inv.roiPercentage || inv.roi || client.roiPercent || client.roiPercentage || 0;
+    const monthlyROI = Math.round((amt * rate) / 100);
+    
+    const startDate = formatDateStr(inv.allocationDate || inv.investmentDate || client.contractStartDate);
+    const endDate = formatDateStr(client.contractEndDate);
+    const contractPeriodText = startDate !== '—' && endDate !== '—' ? `${startDate} to ${endDate}` : (endDate !== '—' ? endDate : '—');
+
     return `
       <tr>
         <td style="border: 1px solid #CFDDD5; padding: 10px; font-weight: 500;">${inv.segment}</td>
-        <td style="border: 1px solid #CFDDD5; padding: 10px; text-align: center;">${inv.date || '—'}</td>
-        <td style="border: 1px solid #CFDDD5; padding: 10px; text-align: center;">—</td>
-        <td style="border: 1px solid #CFDDD5; padding: 10px; text-align: right; font-weight: 600;">₹${inv.amount.toLocaleString('en-IN')}</td>
-        <td style="border: 1px solid #CFDDD5; padding: 10px; text-align: right;">${inv.roi || client.roiPercentage || 1}%</td>
+        <td style="border: 1px solid #CFDDD5; padding: 10px; text-align: center;">${startDate}</td>
+        <td style="border: 1px solid #CFDDD5; padding: 10px; text-align: center;">${contractPeriodText}</td>
+        <td style="border: 1px solid #CFDDD5; padding: 10px; text-align: right; font-weight: 600;">₹${amt.toLocaleString('en-IN')}</td>
+        <td style="border: 1px solid #CFDDD5; padding: 10px; text-align: right;">${rate}%</td>
         <td style="border: 1px solid #CFDDD5; padding: 10px; text-align: right; font-weight: bold; color: #0F766E;">₹${monthlyROI.toLocaleString('en-IN')}</td>
       </tr>
     `;
   }).join('');
 
   const printWindow = window.open('', '_blank', 'width=900,height=700');
+  if (!printWindow) {
+    alert('Popup blocked! Please allow popups for this site to generate and print statements.');
+    return;
+  }
   printWindow.document.write(`
     <html>
     <head>
-      <title>ROI Payout Statement - ${roi.month} - ${client.name}</title>
+      <title>ROI Payout Statement - ${roi.month} - ${cName}</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         body { font-family: 'Inter', sans-serif; line-height: 1.6; color: #11221A; background-color: #FFFFFF; padding: 40px; margin: 0; }
@@ -112,7 +136,7 @@ function downloadClientROISinglePDF(roi, client) {
         <div class="meta-grid">
           <div class="meta-item">
             <span class="meta-label">Client Name:</span>
-            <span class="meta-val">${client.name}</span>
+            <span class="meta-val">${cName}</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Client ID:</span>
@@ -163,9 +187,10 @@ function downloadClientROISinglePDF(roi, client) {
 }
 
 function downloadAllClientROICSV(roiList, client) {
+  const cName = client.name || client.fullName || 'Client';
   const rows = [
     ['Client ROI Statement History'],
-    ['Client Name', client.name],
+    ['Client Name', cName],
     ['Client ID', client.clientId],
     [''],
     ['Month', 'ROI Amount', 'Payment Date', 'Status']
@@ -183,13 +208,18 @@ function downloadAllClientROICSV(roiList, client) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `ROI_Statement_All_${client.name.replace(/\s/g, '_')}.csv`;
+  link.download = `ROI_Statement_All_${cName.replace(/\s/g, '_')}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
 
 function downloadAllClientROIPDF(roiList, client) {
+  const cName = client.name || client.fullName || 'Client';
   const printWindow = window.open('', '_blank', 'width=900,height=700');
+  if (!printWindow) {
+    alert('Popup blocked! Please allow popups for this site to generate and print statements.');
+    return;
+  }
   const totalReceived = roiList.reduce((sum, r) => sum + r.amount, 0);
 
   const rowsHtml = roiList.map(roi => {
@@ -206,7 +236,7 @@ function downloadAllClientROIPDF(roiList, client) {
   printWindow.document.write(`
     <html>
     <head>
-      <title>ROI Statement History - ${client.name}</title>
+      <title>ROI Statement History - ${cName}</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         body { font-family: 'Inter', sans-serif; line-height: 1.6; color: #11221A; background-color: #FFFFFF; padding: 40px; margin: 0; }
@@ -249,7 +279,7 @@ function downloadAllClientROIPDF(roiList, client) {
         <div class="meta-grid">
           <div class="meta-item">
             <span class="meta-label">Client Name:</span>
-            <span class="meta-val">${client.name}</span>
+            <span class="meta-val">${cName}</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Client ID:</span>
@@ -721,6 +751,43 @@ export default function InvestorDetail() {
     } finally { setTabLoading(false); }
   };
 
+  const handleMarkPaid = async (roi) => {
+    const pid = clientProfileId || id;
+    const payoutId = roi._id || roi.id;
+    if (!pid || !payoutId) return;
+
+    try {
+      setTabLoading(true);
+      const isMockId = !/^[0-9a-fA-F]{24}$/.test(String(payoutId));
+
+      let paidMockIds = [];
+      try {
+        const stored = localStorage.getItem('kfpl_super_admin_paid_mock_payouts');
+        if (stored) paidMockIds = JSON.parse(stored);
+      } catch (e) {}
+      if (!paidMockIds.includes(String(payoutId))) {
+        paidMockIds.push(String(payoutId));
+        localStorage.setItem('kfpl_super_admin_paid_mock_payouts', JSON.stringify(paidMockIds));
+      }
+
+      if (!isMockId) {
+        await apiRequest(`/api/super-admin/clients/${pid}/roi/${payoutId}/pay`, {
+          method: 'PATCH'
+        });
+      } else {
+        console.warn(`Simulating paid status for mock ROI payout ID: ${payoutId}`);
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      addToast(`ROI payout of ${formatCurrency(roi.amount || 0)} for ${roi.payoutMonth || roi.month} marked as paid successfully!`, 'success', 'ROI Paid');
+      await fetchRoi();
+    } catch (err) {
+      console.error('Failed to mark ROI payout as paid:', err);
+      addToast(err.message || 'Failed to update ROI status', 'error', 'Error');
+      setTabLoading(false);
+    }
+  };
+
   const fetchPerks = async () => {
     setTabLoading(true);
     try {
@@ -817,6 +884,12 @@ export default function InvestorDetail() {
       else if (data.data.payouts && Array.isArray(data.data.payouts)) list = data.data.payouts;
       else if (data.data.list && Array.isArray(data.data.list)) list = data.data.list;
     }
+
+    let paidMockIds = [];
+    try {
+      const stored = localStorage.getItem('kfpl_super_admin_paid_mock_payouts');
+      if (stored) paidMockIds = JSON.parse(stored);
+    } catch (e) {}
     
     if (list.length === 0 && investor && investor.totalInvestment) {
       const roiPercent = localRoiPercentage || investor.roiPercentage || 1.2;
@@ -837,13 +910,16 @@ export default function InvestorDetail() {
         const isCurrentMonth = current.getFullYear() === end.getFullYear() && current.getMonth() === end.getMonth();
         const isLastMonth = current.getFullYear() === end.getFullYear() && current.getMonth() === (end.getMonth() - 1);
         
-        const status = (isCurrentMonth || isLastMonth) ? 'Pending' : 'Paid';
+        const payoutId = String(index++);
+        const isPaidMock = paidMockIds.includes(payoutId);
+        const status = isPaidMock ? 'Paid' : ((isCurrentMonth || isLastMonth) ? 'Pending' : 'Paid');
         const paidDate = status === 'Paid'
-          ? new Date(current.getFullYear(), current.getMonth() + 1, 0).toLocaleDateString('en-IN')
+          ? (isPaidMock ? new Date().toLocaleDateString('en-IN') : new Date(current.getFullYear(), current.getMonth() + 1, 0).toLocaleDateString('en-IN'))
           : null;
-
+ 
         mockList.push({
-          id: index++,
+          id: parseInt(payoutId, 10),
+          _id: payoutId,
           month: monthLabel,
           payoutMonth: monthLabel,
           amount: monthlyROIVal,
@@ -854,7 +930,7 @@ export default function InvestorDetail() {
         });
         current.setMonth(current.getMonth() + 1);
       }
-
+ 
       if (mockList.length === 0) {
         return [
           { id: 201, month: 'Jan 2026', payoutMonth: 'Jan 2026', amount: monthlyROIVal, status: 'Paid', paidAt: '2026-01-31', processedDate: '2026-01-31', roiRate: roiPercent },
@@ -862,20 +938,31 @@ export default function InvestorDetail() {
           { id: 203, month: 'Mar 2026', payoutMonth: 'Mar 2026', amount: monthlyROIVal, status: 'Paid', paidAt: '2026-03-31', processedDate: '2026-03-31', roiRate: roiPercent },
           { id: 204, month: 'Apr 2026', payoutMonth: 'Apr 2026', amount: monthlyROIVal, status: 'Pending', paidAt: null, processedDate: '—', roiRate: roiPercent },
           { id: 205, month: 'May 2026', payoutMonth: 'May 2026', amount: monthlyROIVal, status: 'Pending', paidAt: null, processedDate: '—', roiRate: roiPercent },
-        ];
+        ].map(r => {
+          const isPaidMock = paidMockIds.includes(String(r.id));
+          return {
+            ...r,
+            status: isPaidMock ? 'Paid' : r.status,
+            processedDate: isPaidMock ? new Date().toLocaleDateString('en-IN') : r.processedDate
+          };
+        });
       }
       return mockList;
     }
     
-    return list.map(r => ({
-      ...r,
-      month: r.month || r.payoutMonth || r.period || '—',
-      payoutMonth: r.payoutMonth || r.month || r.period || '—',
-      roiRate: r.roiRate || r.roiPercentage || localRoiPercentage || 1.2,
-      amount: Number(r.amount || 0),
-      status: r.status || 'pending',
-      processedDate: r.processedDate || r.paidAt || r.date || '—',
-    }));
+    return list.map(r => {
+      const payoutId = String(r.id || r._id || '');
+      const isPaidMock = paidMockIds.includes(payoutId);
+      return {
+        ...r,
+        month: r.month || r.payoutMonth || r.period || '—',
+        payoutMonth: r.payoutMonth || r.month || r.period || '—',
+        roiRate: r.roiRate || r.roiPercentage || localRoiPercentage || 1.2,
+        amount: Number(r.amount || 0),
+        status: isPaidMock ? 'Paid' : (r.status || 'pending'),
+        processedDate: isPaidMock ? new Date().toLocaleDateString('en-IN') : (r.processedDate || r.paidAt || r.date || '—'),
+      };
+    });
   };
   const roiHistory = getRoiHistoryList(roiData);
   const totalPaidROI = roiHistory.filter(r => (r.status || '').toLowerCase() === 'paid').reduce((sum, r) => sum + Number(r.amount || 0), 0);
