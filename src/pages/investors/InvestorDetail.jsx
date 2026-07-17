@@ -1597,17 +1597,6 @@ export default function InvestorDetail() {
 
       {activeTab === 'roi' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* ROI Stats row */}
-          <div className="kfpl-grid-2col" style={{ gap: '20px' }}>
-            <div className="kfpl-detail-kpi-summary-card" style={{ borderLeft: '4px solid #10B981' }}>
-              <span className="kfpl-detail-kpi-summary-label">Total ROI Paid</span>
-              <span className="kfpl-detail-kpi-summary-value" style={{ color: '#10B981' }}>{formatCurrency(totalPaidROI)}</span>
-            </div>
-            <div className="kfpl-detail-kpi-summary-card" style={{ borderLeft: '4px solid #F59E0B' }}>
-              <span className="kfpl-detail-kpi-summary-label">Total ROI Pending</span>
-              <span className="kfpl-detail-kpi-summary-value" style={{ color: '#F59E0B' }}>{formatCurrency(totalPendingROI)}</span>
-            </div>
-          </div>
 
           <div className="kfpl-table-container">
             <div className="kfpl-table-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--color-border)', flexWrap: 'wrap', gap: '12px' }}>
@@ -1669,15 +1658,14 @@ export default function InvestorDetail() {
                     <th>Payout Status</th>
                     <th>Processed Date</th>
                     <th style={{ textAlign: 'center' }}>Download Statement</th>
-                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {tabLoading ? (
-                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: '48px', color: 'var(--color-text-muted)' }}>Loading ROI data...</td></tr>
+                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '48px', color: 'var(--color-text-muted)' }}>Loading ROI data...</td></tr>
                   ) : roiHistory.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', padding: '48px', color: 'var(--color-text-muted)' }}>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '48px', color: 'var(--color-text-muted)' }}>
                         No ROI payout records found for this client.
                       </td>
                     </tr>
@@ -1687,8 +1675,33 @@ export default function InvestorDetail() {
                         <td className="kfpl-table-cell-primary">{roi.payoutMonth || roi.month}</td>
                         <td><strong>{roi.roiRate || roi.roiPercentage || localRoiPercentage || 1.2}%</strong></td>
                         <td className="font-semibold">{formatCurrency(roi.amount || 0)}</td>
-                        <td><Badge status={(roi.status || 'pending').toLowerCase()}>{roi.status}</Badge></td>
-                        <td>{roi.processedDate || roi.paidAt || '—'}</td>
+                        <td>
+                          {(() => {
+                            const isPaid = String(roi.status || '').toLowerCase() === 'paid';
+                            const statusText = isPaid ? 'Paid' : 'Approved';
+                            return <Badge status={statusText.toLowerCase()}>{statusText}</Badge>;
+                          })()}
+                        </td>
+                        <td>
+                          {(() => {
+                            const rawDate = roi.processedDate || roi.paidAt || roi.date;
+                            if (rawDate && rawDate !== '—' && rawDate !== '-') {
+                              try {
+                                const d = new Date(rawDate);
+                                if (!isNaN(d.getTime())) return d.toLocaleDateString('en-IN');
+                              } catch (e) {}
+                            }
+                            // Fallback to month-end date for display
+                            try {
+                              const monthStr = roi.payoutMonth || roi.month;
+                              const d = new Date(monthStr);
+                              if (!isNaN(d.getTime())) {
+                                return new Date(d.getFullYear(), d.getMonth() + 1, 0).toLocaleDateString('en-IN');
+                              }
+                            } catch (e) {}
+                            return new Date().toLocaleDateString('en-IN');
+                          })()}
+                        </td>
                         <td style={{ textAlign: 'center' }}>
                           <div style={{ display: 'inline-flex', gap: '6px', justifyContent: 'center' }}>
                             <button
@@ -1720,20 +1733,6 @@ export default function InvestorDetail() {
                               PDF
                             </button>
                           </div>
-                        </td>
-                        <td>
-                          {(roi.status || '').toLowerCase() === 'pending' && (
-                            <button
-                              className="kfpl-btn kfpl-btn--success kfpl-btn--sm"
-                              style={{ background: '#10B981', borderColor: 'transparent', color: 'var(--color-white)' }}
-                              onClick={() => addToast(`ROI payout of ${formatCurrency(roi.amount || 0)} for ${roi.payoutMonth || roi.month} marked as paid`, 'success', 'ROI Paid')}
-                            >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" width="14" height="14" style={{ marginRight: '4px' }}>
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
-                              Mark Paid
-                            </button>
-                          )}
                         </td>
                       </tr>
                     ))
