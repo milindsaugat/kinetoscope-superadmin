@@ -125,7 +125,7 @@ export default function AgentClientsView() {
         if (!agent) return <span style={{ color: 'var(--color-text-muted)' }}>—</span>;
         return (
           <span className="font-semibold" style={{ color: 'var(--color-success)' }}>
-            {agent.commissionMonthly}% monthly
+            Slab-Based
           </span>
         );
       }

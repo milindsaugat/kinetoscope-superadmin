@@ -89,16 +89,41 @@ function getPeriodInvestmentDate(investor, com) {
   }
   return '';
 }
-function getCalculatedCommissions(agt, cls) {
+function getCalculatedCommissions(agt, cls, apiSlabs = []) {
   const list = [];
   if (!agt || !cls || cls.length === 0) return [];
+
+  const getSlabRate = (typeNorm, amount) => {
+    const typeSlabs = apiSlabs.filter(s => s.type === typeNorm);
+    const fallbackSlabs = typeNorm === 'one-time' 
+      ? [
+          { minAmount: 500000, maxAmount: 2500000, percentage: 2 },
+          { minAmount: 2500000, maxAmount: 5000000, percentage: 3 },
+          { minAmount: 5000000, maxAmount: 10000000, percentage: 4 },
+          { minAmount: 10000000, maxAmount: 999999999, percentage: 5 }
+        ]
+      : [
+          { minAmount: 0, maxAmount: 1500000, percentage: 0.5 },
+          { minAmount: 1500000, maxAmount: 2500000, percentage: 0.75 },
+          { minAmount: 2500000, maxAmount: 5000000, percentage: 1 },
+          { minAmount: 5000000, maxAmount: 10000000, percentage: 1.5 },
+          { minAmount: 10000000, maxAmount: 999999999, percentage: 2 }
+        ];
+    const activeSlabs = typeSlabs.length > 0 ? typeSlabs : fallbackSlabs;
+    const matched = activeSlabs.find(s => {
+      const max = s.maxAmount === null || s.maxAmount === undefined || s.maxAmount === 999999999 ? 999999999 : s.maxAmount;
+      const min = s.minAmount || 0;
+      return amount >= min && amount < max;
+    });
+    return matched ? (matched.commissionPercentage !== undefined ? matched.commissionPercentage : (matched.percentage || 0)) : 0;
+  };
 
   cls.forEach((cl, index) => {
     const totalInv = cl.totalInvestment || cl.investmentAmount || 0;
     if (totalInv <= 0) return;
 
-    const otRate = parseFloat(agt.commissionOneTime || agt.profile?.oneTimeCommission || 0);
-    const mRate = parseFloat(agt.commissionMonthly || agt.profile?.monthlySlab || 0);
+    const otRate = getSlabRate('one-time', totalInv);
+    const mRate = getSlabRate('monthly', totalInv);
     const spRate = parseFloat(agt.commissionSpecial || agt.profile?.specialCommission || 0);
 
     const joinDateStr = cl.joinDate || '';
@@ -144,24 +169,28 @@ function getCalculatedCommissions(agt, cls) {
     // 2. Monthly Recurring Commission
     if (mRate > 0) {
       const mAmt = Math.round((totalInv * mRate) / 100);
-      list.push({
-        id: `calc-m-${cl.id || cl._id}-${index}`,
-        month: monthYearStr,
-        date: dateVal.toISOString().split('T')[0],
-        type: 'monthly',
-        commissionType: 'Monthly',
-        amount: mAmt,
-        status: 'Paid',
-        clientId: cl.id || cl._id,
-        breakdown: [{
-          clientName: cl.name || cl.fullName || '',
-          clientId: cl.clientId || '',
-          investment: totalInv,
-          rate: mRate,
+      const nextMonthDate = new Date(dateVal.getFullYear(), dateVal.getMonth() + 1, 1);
+      if (nextMonthDate <= new Date()) {
+        const nextMonthYearStr = nextMonthDate.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+        list.push({
+          id: `calc-m-${cl.id || cl._id}-${index}`,
+          month: nextMonthYearStr,
+          date: nextMonthDate.toISOString().split('T')[0],
+          type: 'monthly',
+          commissionType: 'Monthly',
           amount: mAmt,
-          investmentDate: joinDateStr || '—'
-        }]
-      });
+          status: 'Paid',
+          clientId: cl.id || cl._id,
+          breakdown: [{
+            clientName: cl.name || cl.fullName || '',
+            clientId: cl.clientId || '',
+            investment: totalInv,
+            rate: mRate,
+            amount: mAmt,
+            investmentDate: joinDateStr || '—'
+          }]
+        });
+      }
     }
 
     // 3. Special Override Commission
@@ -504,12 +533,14 @@ export default function AgentDetail() {
   }, [viewingDoc]);
   const [loading, setLoading] = useState(true);
   const [localStatus, setLocalStatus] = useState('active');
+  const [apiSlabs, setApiSlabs] = useState([]);
 
   const fetchAgentDetails = async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
       let localAg = null;
-      const [agentRes, clientsRes, commissionsRes, overridesRes] = await Promise.all([
+      let parsedSlabs = [];
+      const [agentRes, clientsRes, commissionsRes, overridesRes, slabsRes] = await Promise.all([
         apiRequest(`/api/super-admin/agents/${id}`).catch(err => {
           console.error('Failed to load agent basic details:', err);
           return null;
@@ -524,6 +555,10 @@ export default function AgentDetail() {
         }),
         apiRequest('/api/super-admin/commission-slabs/overrides').catch(err => {
           console.error('Failed to load overrides in agent details:', err);
+          return null;
+        }),
+        apiRequest('/api/super-admin/commission-slabs').catch(err => {
+          console.error('Failed to load slabs in agent details:', err);
           return null;
         })
       ]);
@@ -577,6 +612,17 @@ export default function AgentDetail() {
           }
           return [];
         };
+
+        const rawSlabs = extractArray(slabsRes);
+        parsedSlabs = rawSlabs.map(s => ({
+          id: s._id || s.id,
+          minAmount: s.minAmount || 0,
+          maxAmount: (s.maxAmount === null || s.maxAmount === undefined || s.maxAmount === 999999999) ? 999999999 : s.maxAmount,
+          commissionPercentage: s.commissionPercentage !== undefined ? s.commissionPercentage : (s.percentage || 0),
+          percentage: s.commissionPercentage !== undefined ? s.commissionPercentage : (s.percentage || 0),
+          type: s.type || 'monthly'
+        }));
+        setApiSlabs(parsedSlabs);
 
         const rawOverrides = extractArray(overridesRes);
         const matchedOverride = rawOverrides.find(o => {
@@ -705,7 +751,7 @@ export default function AgentDetail() {
         });
       };
       const dbComms = extractCommissions(commissionsRes);
-      const calculated = getCalculatedCommissions(localAg, normalizedClients);
+      const calculated = getCalculatedCommissions(localAg, normalizedClients, parsedSlabs);
 
       const merged = [...dbComms];
       calculated.forEach(calc => {
@@ -986,10 +1032,37 @@ export default function AgentDetail() {
       if (clientObj) {
         let pct = 0;
         const typeNormalized = String(com.type || com.commissionType || '').toLowerCase().trim();
+        const totalInv = clientObj.totalInvestment || 0;
+
+        const getSlabRateLocal = (typeNorm, amount) => {
+          const typeSlabs = apiSlabs.filter(s => s.type === typeNorm);
+          const fallbackSlabs = typeNorm === 'one-time' 
+            ? [
+                { minAmount: 500000, maxAmount: 2500000, percentage: 2 },
+                { minAmount: 2500000, maxAmount: 5000000, percentage: 3 },
+                { minAmount: 5000000, maxAmount: 10000000, percentage: 4 },
+                { minAmount: 10000000, maxAmount: 999999999, percentage: 5 }
+              ]
+            : [
+                { minAmount: 0, maxAmount: 1500000, percentage: 0.5 },
+                { minAmount: 1500000, maxAmount: 2500000, percentage: 0.75 },
+                { minAmount: 2500000, maxAmount: 5000000, percentage: 1 },
+                { minAmount: 5000000, maxAmount: 10000000, percentage: 1.5 },
+                { minAmount: 10000000, maxAmount: 999999999, percentage: 2 }
+              ];
+          const activeSlabs = typeSlabs.length > 0 ? typeSlabs : fallbackSlabs;
+          const matched = activeSlabs.find(s => {
+            const max = s.maxAmount === null || s.maxAmount === undefined || s.maxAmount === 999999999 ? 999999999 : s.maxAmount;
+            const min = s.minAmount || 0;
+            return amount >= min && amount < max;
+          });
+          return matched ? (matched.commissionPercentage !== undefined ? matched.commissionPercentage : (matched.percentage || 0)) : 0;
+        };
+
         if (typeNormalized === 'one-time' || typeNormalized === 'onetime' || typeNormalized === 'one time' || typeNormalized === 'one-time onboarding') {
-          pct = agent.commissionOneTime || 5;
+          pct = getSlabRateLocal('one-time', totalInv);
         } else if (typeNormalized === 'monthly' || typeNormalized === 'recurring' || typeNormalized === 'monthly recurring') {
-          pct = agent.commissionMonthly || 2;
+          pct = getSlabRateLocal('monthly', totalInv);
         } else if (typeNormalized === 'special' || typeNormalized === 'override' || typeNormalized === 'special override') {
           pct = agent.commissionSpecial || 0;
         }
@@ -1160,8 +1233,8 @@ export default function AgentDetail() {
           <span className="kfpl-detail-kpi-summary-value">{agent.totalClients} Clients</span>
         </div>
         <div className="kfpl-detail-kpi-summary-card">
-          <span className="kfpl-detail-kpi-summary-label">Monthly Slab %</span>
-          <span className="kfpl-detail-kpi-summary-value" style={{ color: '#F59E0B' }}>{agent.commissionMonthly}% Monthly</span>
+          <span className="kfpl-detail-kpi-summary-label">Commission Model</span>
+          <span className="kfpl-detail-kpi-summary-value" style={{ color: '#F59E0B' }}>Automatic (Slab)</span>
         </div>
         <div className="kfpl-detail-kpi-summary-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <span className="kfpl-detail-kpi-summary-label">KYC Verification</span>
@@ -1346,29 +1419,34 @@ export default function AgentDetail() {
           </div>
 
           <div className="kfpl-detail-info-card">
-            <div className="kfpl-detail-info-title">Commission Rates & Active Overrides</div>
+            <div className="kfpl-detail-info-title">Commission Slab Configuration</div>
             <div className="kfpl-detail-info-row-item">
               <div className="kfpl-detail-info-item-icon">{infoIcons.landmark}</div>
               <div className="kfpl-detail-info-item-content">
-                <span className="kfpl-detail-info-item-label">One-Time Commission Rate</span>
-                <span className="kfpl-detail-info-item-value">{agent.commissionOneTime || '0'}%</span>
+                <span className="kfpl-detail-info-item-label">One-Time Commission Slab</span>
+                <span className="kfpl-detail-info-item-value">Automatic (Linked to Slab)</span>
               </div>
             </div>
             <div className="kfpl-detail-info-row-item">
               <div className="kfpl-detail-info-item-icon">{infoIcons.shield}</div>
               <div className="kfpl-detail-info-item-content">
-                <span className="kfpl-detail-info-item-label">Monthly Recurring Rate</span>
-                <span className="kfpl-detail-info-item-value">
-                  {agent.commissionMonthly && agent.commissionMonthly !== '—' ? `${agent.commissionMonthly}%` : 'Standard Slabs'}
-                </span>
+                <span className="kfpl-detail-info-item-label">Monthly Commission Slab</span>
+                <span className="kfpl-detail-info-item-value">Automatic (Linked to Slab)</span>
               </div>
             </div>
             <div className="kfpl-detail-info-row-item">
               <div className="kfpl-detail-info-item-icon">{infoIcons.user}</div>
               <div className="kfpl-detail-info-item-content">
-                <span className="kfpl-detail-info-item-label">Special Commission Override</span>
-                <span className="kfpl-detail-info-item-value" style={{ color: agent.specialOverride ? 'var(--color-gold-dark)' : 'inherit', fontWeight: agent.specialOverride ? 600 : 'normal' }}>
-                  {agent.specialOverride !== undefined && agent.specialOverride !== null ? `+${agent.specialOverride}%` : 'No active override'}
+                <span className="kfpl-detail-info-item-label">Special Commission Slab</span>
+                <span className="kfpl-detail-info-item-value" style={{ 
+                  color: (agent.specialOverride || parseFloat(agent.commissionSpecial) > 0) ? 'var(--color-gold-dark)' : 'inherit', 
+                  fontWeight: (agent.specialOverride || parseFloat(agent.commissionSpecial) > 0) ? 600 : 'normal' 
+                }}>
+                  {parseFloat(agent.commissionSpecial) > 0 
+                    ? `+${agent.commissionSpecial}%` 
+                    : (agent.specialOverride !== undefined && agent.specialOverride !== null 
+                        ? `+${agent.specialOverride}%` 
+                        : 'No active slab')}
                 </span>
               </div>
             </div>
@@ -1376,7 +1454,7 @@ export default function AgentDetail() {
               <div className="kfpl-detail-info-row-item">
                 <div className="kfpl-detail-info-item-icon">{infoIcons.fileText}</div>
                 <div className="kfpl-detail-info-item-content">
-                  <span className="kfpl-detail-info-item-label">Override Reason</span>
+                  <span className="kfpl-detail-info-item-label">Slab Reason</span>
                   <span className="kfpl-detail-info-item-value" style={{ fontSize: '0.875rem', fontStyle: 'italic', color: 'var(--color-text-muted)' }}>
                     "{agent.overrideReason || 'N/A'}"
                   </span>

@@ -31,7 +31,7 @@ export default function CommissionConfig() {
 
   const [showOverrideModal, setShowOverrideModal] = useState(false);
   const [overrideModalType, setOverrideModalType] = useState('add'); // 'add' | 'edit'
-  const [overrideForm, setOverrideForm] = useState({ id: '', agentId: '', percentage: '', reason: '' });
+  const [overrideForm, setOverrideForm] = useState({ id: '', agentId: '', incentiveName: '', targetAmount: '', completeWithin: '', cashReward: '', giftOption: '' });
 
   const extractArray = (res) => {
     if (!res) return [];
@@ -81,14 +81,48 @@ export default function CommissionConfig() {
       const res = await apiRequest('/api/super-admin/commission-slabs/overrides');
       console.log('Overrides API Response:', res);
       const rawOverrides = extractArray(res);
-      const mapped = rawOverrides.map(o => ({
-        id: o._id || o.id,
-        agentId: o.agentId?._id || o.agentId?.id || o.agentId || '',
-        agentCode: o.agentId?.agentId || o.agentCode || '',
-        agentName: o.agentId?.name || o.agentId?.fullName || o.agentName || 'Agent',
-        percentage: o.commissionOverride !== undefined ? o.commissionOverride : (o.percentage || 0),
-        reason: o.reason || ''
-      }));
+      const mapped = rawOverrides.map(o => {
+        let incentiveName = 'Legacy Override';
+        let targetAmount = '—';
+        let completeWithin = '—';
+        let cashReward = '—';
+        let giftOption = '—';
+        let isIncentive = false;
+
+        if (o.reason && o.reason.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(o.reason);
+            if (parsed.isIncentive) {
+              incentiveName = parsed.name || '—';
+              targetAmount = parsed.targetAmount || 0;
+              completeWithin = parsed.completeWithin || '—';
+              cashReward = parsed.cashReward || 0;
+              giftOption = parsed.giftOption || '—';
+              isIncentive = true;
+            }
+          } catch (e) {}
+        }
+
+        if (!isIncentive) {
+          incentiveName = o.reason || 'Special Override';
+          cashReward = `${o.commissionOverride !== undefined ? o.commissionOverride : (o.percentage || 0)}% Override`;
+        }
+
+        return {
+          id: o._id || o.id,
+          agentId: o.agentId?._id || o.agentId?.id || o.agentId || '',
+          agentCode: o.agentId?.agentId || o.agentCode || '',
+          agentName: o.agentId?.name || o.agentId?.fullName || o.agentName || 'Agent',
+          percentage: o.commissionOverride !== undefined ? o.commissionOverride : (o.percentage || 0),
+          reason: o.reason || '',
+          incentiveName,
+          targetAmount,
+          completeWithin,
+          cashReward,
+          giftOption,
+          isIncentive
+        };
+      });
       setOverrides(mapped);
     } catch (err) {
       console.error('Failed to load overrides from backend:', err);
@@ -260,28 +294,37 @@ export default function CommissionConfig() {
   // Override handlers
   const handleOpenAddOverride = () => {
     setOverrideModalType('add');
-    setOverrideForm({ id: '', agentId: '', percentage: '', reason: '' });
+    setOverrideForm({ id: '', agentId: '', incentiveName: '', targetAmount: '', completeWithin: '', cashReward: '', giftOption: '' });
     setShowOverrideModal(true);
   };
 
   const handleOpenEditOverride = (ov) => {
     setOverrideModalType('edit');
+    let parsed = { name: '', targetAmount: '', completeWithin: '', cashReward: '', giftOption: '' };
+    if (ov.reason && ov.reason.startsWith('{')) {
+      try {
+        parsed = JSON.parse(ov.reason);
+      } catch (e) {}
+    }
     setOverrideForm({
       id: ov.id,
       agentId: ov.agentId,
-      percentage: ov.percentage,
-      reason: ov.reason
+      incentiveName: parsed.name || ov.incentiveName || '',
+      targetAmount: parsed.targetAmount || ov.targetAmount || '',
+      completeWithin: parsed.completeWithin || ov.completeWithin || '',
+      cashReward: parsed.cashReward || ov.cashReward || '',
+      giftOption: parsed.giftOption || ov.giftOption || ''
     });
     setShowOverrideModal(true);
   };
 
   const handleDeleteOverride = async (id) => {
-    if (window.confirm('Are you sure you want to delete this special override?')) {
+    if (window.confirm('Are you sure you want to delete this special incentive?')) {
       try {
         await apiRequest(`/api/super-admin/commission-slabs/overrides/${id}`, {
           method: 'DELETE'
         });
-        addToast('Special override removed successfully', 'success', 'Override Deleted');
+        addToast('Special incentive removed successfully', 'success', 'Incentive Deleted');
         await loadConfigData();
       } catch (err) {
         console.error('Failed to delete override:', err);
@@ -291,25 +334,39 @@ export default function CommissionConfig() {
   };
 
   const handleSaveOverride = async () => {
-    const pct = parseFloat(overrideForm.percentage);
     if (!overrideForm.agentId) {
       alert('Please select an agent.');
       return;
     }
-    if (isNaN(pct) || pct < 0 || pct > 100) {
-      alert('Please enter a valid percentage (0-100).');
+    if (!overrideForm.incentiveName || !overrideForm.incentiveName.trim()) {
+      alert('Incentive Name is required.');
       return;
     }
-    if (!overrideForm.reason.trim()) {
-      alert('Reason is mandatory for special overrides.');
+    const targetAmt = parseFloat(overrideForm.targetAmount);
+    if (isNaN(targetAmt) || targetAmt <= 0) {
+      alert('Please enter a valid target amount.');
+      return;
+    }
+    const cashRew = parseFloat(overrideForm.cashReward);
+    if (isNaN(cashRew) && (!overrideForm.giftOption || !overrideForm.giftOption.trim())) {
+      alert('Please specify either a Cash Reward or a Gift Option.');
       return;
     }
 
     try {
+      const serializedReason = JSON.stringify({
+        isIncentive: true,
+        name: overrideForm.incentiveName,
+        targetAmount: targetAmt,
+        completeWithin: overrideForm.completeWithin || 'No Limit',
+        cashReward: isNaN(cashRew) ? 0 : cashRew,
+        giftOption: overrideForm.giftOption || 'None'
+      });
+
       const payload = {
         agentId: overrideForm.agentId,
-        commissionOverride: pct,
-        reason: overrideForm.reason
+        commissionOverride: 0,
+        reason: serializedReason
       };
 
       if (overrideModalType === 'add') {
@@ -317,7 +374,7 @@ export default function CommissionConfig() {
           method: 'POST',
           body: JSON.stringify(payload)
         });
-        addToast('Special override added successfully', 'success', 'Override Created');
+        addToast('Special incentive added successfully', 'success', 'Incentive Created');
       } else {
         if (overrideForm.id) {
           try {
@@ -332,13 +389,13 @@ export default function CommissionConfig() {
           method: 'POST',
           body: JSON.stringify(payload)
         });
-        addToast('Special override updated successfully', 'success', 'Override Updated');
+        addToast('Special incentive updated successfully', 'success', 'Incentive Updated');
       }
       await loadConfigData();
       setShowOverrideModal(false);
     } catch (err) {
       console.error('Failed to save override:', err);
-      alert(err.message || 'Failed to save override.');
+      alert(err.message || 'Failed to save incentive.');
     }
   };
 
@@ -606,9 +663,9 @@ export default function CommissionConfig() {
       {activeTab === 'overrides' && (
         <div className="kfpl-card animate-fade-slide-up">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--color-navy)' }}>Special Manual Commission Overrides</h3>
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--color-navy)' }}>Special Manual Commission Incentives</h3>
             <button className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" onClick={handleOpenAddOverride}>
-              + Add Special Override
+              + Add Special Incentive
             </button>
           </div>
 
@@ -616,25 +673,34 @@ export default function CommissionConfig() {
             <table className="kfpl-table">
               <thead>
                 <tr>
-                  <th>Agent ID</th>
-                  <th>Agent Name</th>
-                  <th style={{ textAlign: 'right' }}>Override Rate (%)</th>
-                  <th>Reason / Remarks</th>
+                  <th>Agent</th>
+                  <th>Incentive Name</th>
+                  <th>Target Amount</th>
+                  <th>Complete Within (days/month)</th>
+                  <th>Cash Reward</th>
+                  <th>Gift Option</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {overrides.length === 0 ? (
                   <tr>
-                    <td colSpan="5" style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: '30px' }}>No special overrides configured.</td>
+                    <td colSpan="7" style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: '30px' }}>No special incentives configured.</td>
                   </tr>
                 ) : (
                   overrides.map(ov => (
                     <tr key={ov.id}>
-                      <td>{ov.agentCode || ov.agentId}</td>
-                      <td style={{ fontWeight: 600 }}>{ov.agentName}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--color-gold-dark)' }}>+{ov.percentage}%</td>
-                      <td style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>{ov.reason}</td>
+                      <td>
+                        <span style={{ fontWeight: 600 }}>{ov.agentName}</span>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{ov.agentCode || ov.agentId}</div>
+                      </td>
+                      <td style={{ fontWeight: 600 }}>{ov.incentiveName}</td>
+                      <td>{ov.isIncentive && typeof ov.targetAmount === 'number' ? formatCurrencyLocal(ov.targetAmount) : ov.targetAmount}</td>
+                      <td>{ov.completeWithin}</td>
+                      <td style={{ fontWeight: 600, color: 'var(--color-success)' }}>
+                        {ov.isIncentive && typeof ov.cashReward === 'number' ? (ov.cashReward > 0 ? formatCurrencyLocal(ov.cashReward) : '—') : ov.cashReward}
+                      </td>
+                      <td>{ov.giftOption}</td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                           <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" style={{ padding: '4px 8px' }} onClick={() => handleOpenEditOverride(ov)}>
@@ -705,11 +771,11 @@ export default function CommissionConfig() {
       <Modal
         isOpen={showOverrideModal}
         onClose={() => setShowOverrideModal(false)}
-        title={overrideModalType === 'add' ? 'Add Special Agent Override' : 'Edit Special Override'}
+        title={overrideModalType === 'add' ? 'Add Special Agent Incentive' : 'Edit Special Agent Incentive'}
         footer={
           <>
             <button className="kfpl-btn kfpl-btn--ghost" onClick={() => setShowOverrideModal(false)}>Cancel</button>
-            <button className="kfpl-btn kfpl-btn--primary" onClick={handleSaveOverride}>Save Override</button>
+            <button className="kfpl-btn kfpl-btn--primary" onClick={handleSaveOverride}>Save Incentive</button>
           </>
         }
       >
@@ -729,24 +795,53 @@ export default function CommissionConfig() {
             </select>
           </div>
           <div className="kfpl-input-group">
-            <label className="kfpl-input-label">Special Commission Override (%) <span className="required">*</span></label>
+            <label className="kfpl-input-label">Incentive Name <span className="required">*</span></label>
             <input
-              type="number"
-              step="0.01"
+              type="text"
               className="kfpl-input"
-              value={overrideForm.percentage}
-              onChange={(e) => setOverrideForm(prev => ({ ...prev, percentage: e.target.value }))}
-              placeholder="e.g. 0.5"
+              value={overrideForm.incentiveName || ''}
+              onChange={(e) => setOverrideForm(prev => ({ ...prev, incentiveName: e.target.value }))}
+              placeholder="e.g. Premium Target Reward"
             />
           </div>
           <div className="kfpl-input-group">
-            <label className="kfpl-input-label">Mandatory Reason / Notes <span className="required">*</span></label>
-            <textarea
-              className="kfpl-textarea"
-              value={overrideForm.reason}
-              onChange={(e) => setOverrideForm(prev => ({ ...prev, reason: e.target.value }))}
-              placeholder="Provide a justification for this manual override..."
-              rows="3"
+            <label className="kfpl-input-label">Target Amount (₹) <span className="required">*</span></label>
+            <input
+              type="number"
+              className="kfpl-input"
+              value={overrideForm.targetAmount || ''}
+              onChange={(e) => setOverrideForm(prev => ({ ...prev, targetAmount: e.target.value }))}
+              placeholder="e.g. 5000000"
+            />
+          </div>
+          <div className="kfpl-input-group">
+            <label className="kfpl-input-label">Complete Within (days/month) <span className="required">*</span></label>
+            <input
+              type="text"
+              className="kfpl-input"
+              value={overrideForm.completeWithin || ''}
+              onChange={(e) => setOverrideForm(prev => ({ ...prev, completeWithin: e.target.value }))}
+              placeholder="e.g. 30 days or 2 months"
+            />
+          </div>
+          <div className="kfpl-input-group">
+            <label className="kfpl-input-label">Cash Reward (₹) <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>(Optional if Gift is set)</span></label>
+            <input
+              type="number"
+              className="kfpl-input"
+              value={overrideForm.cashReward || ''}
+              onChange={(e) => setOverrideForm(prev => ({ ...prev, cashReward: e.target.value }))}
+              placeholder="e.g. 50000"
+            />
+          </div>
+          <div className="kfpl-input-group">
+            <label className="kfpl-input-label">Gift Option <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>(Optional if Cash is set)</span></label>
+            <input
+              type="text"
+              className="kfpl-input"
+              value={overrideForm.giftOption || ''}
+              onChange={(e) => setOverrideForm(prev => ({ ...prev, giftOption: e.target.value }))}
+              placeholder="e.g. iPhone 15 Pro Max"
             />
           </div>
         </div>

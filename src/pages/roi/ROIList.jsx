@@ -41,6 +41,31 @@ const formatClientID = (rawId) => {
   return 'KFPL-CL-1001';
 };
 
+const getSlabRate = (slabs, typeNorm, amount) => {
+  const typeSlabs = slabs.filter(s => s.type === typeNorm);
+  const fallbackSlabs = typeNorm === 'one-time'
+    ? [
+      { minAmount: 500000, maxAmount: 2500000, percentage: 2 },
+      { minAmount: 2500000, maxAmount: 5000000, percentage: 3 },
+      { minAmount: 5000000, maxAmount: 10000000, percentage: 4 },
+      { minAmount: 10000000, maxAmount: 999999999, percentage: 5 }
+    ]
+    : [
+      { minAmount: 0, maxAmount: 1500000, percentage: 0.5 },
+      { minAmount: 1500000, maxAmount: 2500000, percentage: 0.75 },
+      { minAmount: 2500000, maxAmount: 5000000, percentage: 1 },
+      { minAmount: 5000000, maxAmount: 10000000, percentage: 1.5 },
+      { minAmount: 10000000, maxAmount: 999999999, percentage: 2 }
+    ];
+  const activeSlabs = typeSlabs.length > 0 ? typeSlabs : fallbackSlabs;
+  const matched = activeSlabs.find(s => {
+    const max = s.maxAmount === null || s.maxAmount === undefined || s.maxAmount === 999999999 ? 999999999 : s.maxAmount;
+    const min = s.minAmount || 0;
+    return amount >= min && amount < max;
+  });
+  return matched ? (matched.commissionPercentage !== undefined ? matched.commissionPercentage : (matched.percentage || 0)) : 0;
+};
+
 export default function ROIList() {
   const navigate = useNavigate();
   const addToast = useToast();
@@ -66,6 +91,40 @@ export default function ROIList() {
   // Live database dropdown lists
   const [dbClients, setDbClients] = useState([]);
   const [dbAgents, setDbAgents] = useState([]);
+  const [slabs, setSlabs] = useState([]);
+
+  useEffect(() => {
+    const fetchSlabs = async () => {
+      try {
+        const res = await apiRequest('/api/super-admin/commission-slabs');
+        const extractArray = (r) => {
+          if (!r) return [];
+          if (Array.isArray(r)) return r;
+          if (r.data && Array.isArray(r.data)) return r.data;
+          for (const key in r) {
+            if (Array.isArray(r[key])) return r[key];
+            if (r[key] && typeof r[key] === 'object') {
+              const nested = extractArray(r[key]);
+              if (nested && nested.length > 0) return nested;
+            }
+          }
+          return [];
+        };
+        const raw = extractArray(res);
+        setSlabs(raw.map(s => ({
+          id: s._id || s.id,
+          minAmount: s.minAmount || 0,
+          maxAmount: (s.maxAmount === null || s.maxAmount === undefined || s.maxAmount === 999999999) ? 999999999 : s.maxAmount,
+          commissionPercentage: s.commissionPercentage !== undefined ? s.commissionPercentage : (s.percentage || 0),
+          percentage: s.commissionPercentage !== undefined ? s.commissionPercentage : (s.percentage || 0),
+          type: s.type || 'monthly'
+        })));
+      } catch (err) {
+        console.error('Failed to fetch slabs in ROIList:', err);
+      }
+    };
+    fetchSlabs();
+  }, []);
 
   // Record Payout Confirmation Modal
   const [showRecordPayoutConfirmModal, setShowRecordPayoutConfirmModal] = useState(false);
@@ -78,12 +137,12 @@ export default function ROIList() {
     const lines = text.split(/\r?\n/);
     if (lines.length <= 1) return [];
     const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, '').toLowerCase());
-    
+
     const records = [];
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
-      
+
       const cells = [];
       let currentCell = '';
       let inQuotes = false;
@@ -115,12 +174,12 @@ export default function ROIList() {
     const file = e.target.files[0];
     if (!file) return;
     setUploadFile(file);
-    
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target.result;
       const parsed = parseCSV(text);
-      
+
       const validated = parsed.map((rec, index) => {
         const errors = [];
         const type = (rec['recipient type'] || rec['type'] || '').toLowerCase().trim();
@@ -135,7 +194,7 @@ export default function ROIList() {
         if (type !== 'client' && type !== 'agent') {
           errors.push("Invalid type. Use 'client' or 'agent'.");
         }
-        
+
         let name = '';
         let idInternal = '';
         if (type === 'client') {
@@ -209,7 +268,7 @@ export default function ROIList() {
     try {
       const formData = new FormData();
       formData.append('file', uploadFile);
-      
+
       await apiRequest('/api/super-admin/roi/payouts/bulk', {
         method: 'POST',
         body: formData
@@ -263,7 +322,7 @@ export default function ROIList() {
   const [showPayoutWarningModal, setShowPayoutWarningModal] = useState(false);
   const [showPayoutConfirmModal, setShowPayoutConfirmModal] = useState(false);
   const [showClearAllConfirmModal, setShowClearAllConfirmModal] = useState(false);
-  
+
   // Form fields
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedAgentId, setSelectedAgentId] = useState('');
@@ -282,7 +341,7 @@ export default function ROIList() {
 
       const res = await apiRequest(`/api/super-admin/roi/payouts?status=${statusParam}&recipientType=${recipientParam}&search=${searchParam}`);
       const data = res.data || res;
-      
+
       let unified = [];
       if (Array.isArray(data)) {
         unified = data;
@@ -337,10 +396,10 @@ export default function ROIList() {
   const fetchDropdownData = async () => {
     try {
       console.log("Fetching dropdown clients and agents...");
-      
+
       const clientRes = await apiRequest('/api/super-admin/clients');
       console.log("Raw Clients API Response:", clientRes);
-      
+
       let parsedClients = [];
       if (Array.isArray(clientRes)) {
         parsedClients = clientRes;
@@ -355,13 +414,13 @@ export default function ROIList() {
       } else if (clientRes.clients && Array.isArray(clientRes.clients)) {
         parsedClients = clientRes.clients;
       }
-      
+
       console.log("Parsed Clients list:", parsedClients);
       setDbClients(parsedClients);
 
       const agentRes = await apiRequest('/api/super-admin/agents');
       console.log("Raw Agents API Response:", agentRes);
-      
+
       let parsedAgents = [];
       if (Array.isArray(agentRes)) {
         parsedAgents = agentRes;
@@ -376,10 +435,10 @@ export default function ROIList() {
       } else if (agentRes.agents && Array.isArray(agentRes.agents)) {
         parsedAgents = agentRes.agents;
       }
-      
+
       console.log("Parsed Agents list:", parsedAgents);
       setDbAgents(parsedAgents);
-      
+
     } catch (err) {
       console.error("Failed to load drop-down clients/agents:", err);
     }
@@ -413,9 +472,9 @@ export default function ROIList() {
         let pct = 0;
         const typeNormalized = String(commissionType).toLowerCase().trim();
         if (typeNormalized === 'one-time' || typeNormalized === 'onetime' || typeNormalized === 'one-time onboarding') {
-          pct = agent.profile?.oneTimeCommission || agent.commissionOneTime || 0;
+          pct = getSlabRate(slabs, 'one-time', totalInv);
         } else if (typeNormalized === 'monthly' || typeNormalized === 'recurring' || typeNormalized === 'monthly recurring') {
-          pct = agent.profile?.monthlySlab || agent.commissionMonthly || 0;
+          pct = getSlabRate(slabs, 'monthly', totalInv);
         } else if (typeNormalized === 'special' || typeNormalized === 'override' || typeNormalized === 'special override') {
           pct = agent.profile?.specialCommission || agent.commissionSpecial || 0;
         }
@@ -546,7 +605,7 @@ export default function ROIList() {
       const id = c.user?._id || c.profile?.userId || c._id || c.id;
       return String(id) === String(selectedClientId);
     });
-    
+
     const selectedAgentObj = dbAgents.find(a => {
       const id = a.user?._id || a.profile?.userId || a._id || a.id;
       return String(id) === String(selectedAgentId);
@@ -559,7 +618,7 @@ export default function ROIList() {
 
     const payload = {
       recipientType: recipientType === 'client' ? 'Client Return (ROI)' : 'Agent Commission',
-      recipientId: recipientType === 'client' 
+      recipientId: recipientType === 'client'
         ? (selectedClientObj?.profile?._id || selectedClientObj?._id || selectedClientId)
         : (selectedAgentObj?.profile?._id || selectedAgentObj?._id || selectedAgentId),
       recipientName: recipientType === 'client'
@@ -571,10 +630,10 @@ export default function ROIList() {
       commissionType: recipientType === 'agent' ? commissionType : undefined,
       clientId: recipientType === 'client'
         ? (selectedClientObj?.profile?._id || selectedClientObj?._id || selectedClientId)
-        : (recipientType === 'agent' && relatedClientId 
+        : (recipientType === 'agent' && relatedClientId
           ? (relatedClientObj?.profile?._id || relatedClientObj?._id || relatedClientId)
           : undefined),
-      roiPercentage: recipientType === 'client' 
+      roiPercentage: recipientType === 'client'
         ? (selectedClientObj?.monthlyRoi || selectedClientObj?.summaryCards?.monthlyRoi || selectedClientObj?.profile?.monthlyRoi || selectedClientObj?.profile?.roiPercentage || selectedClientObj?.roiPercentage || 1.2)
         : undefined,
       amount: amt,
@@ -622,23 +681,23 @@ export default function ROIList() {
     ...clientROI.map(r => {
       const match = dbClients.find(c => {
         const userId = (c.user && typeof c.user === 'object' ? c.user._id : c.user) ||
-                       c.userId ||
-                       (c.profile?.userId) || 
-                       c._id || c.id;
+          c.userId ||
+          (c.profile?.userId) ||
+          c._id || c.id;
         const profileId = c.profile?._id || c.profile?.id || c._id || c.id;
         return String(userId) === String(r.investorId) || String(profileId) === String(r.investorId);
       });
       const resolvedName = r.investorName && r.investorName !== 'Unknown' && r.investorName !== '—'
         ? r.investorName
         : (match?.fullName || match?.profile?.fullName || match?.user?.name || match?.name || 'Unknown');
-      
+
       const resolvedCode = formatClientID(
         r.clientId && r.clientId !== '—' && !/^[0-9a-fA-F]{24}$/.test(r.clientId)
           ? r.clientId
           : (match?.clientCode || match?.profile?.clientCode || match?.clientId || r.investorId || '')
       );
 
-      const resolvedRoi = match 
+      const resolvedRoi = match
         ? (match.monthlyRoi || match.summaryCards?.monthlyRoi || match.profile?.monthlyRoi || match.profile?.roiPercentage || match.roiPercentage || 1.2)
         : (r.roiPercentage || 1.2);
 
@@ -653,16 +712,16 @@ export default function ROIList() {
     ...agentCommissions.map(c => {
       const match = dbAgents.find(a => {
         const userId = (a.user && typeof a.user === 'object' ? a.user._id : a.user) ||
-                       a.userId ||
-                       (a.profile?.userId) || 
-                       a._id || a.id;
+          a.userId ||
+          (a.profile?.userId) ||
+          a._id || a.id;
         const profileId = a.profile?._id || a.profile?.id || a._id || a.id;
         return String(userId) === String(c.idInternal) || String(profileId) === String(c.idInternal);
       });
       const resolvedName = c.agentName && c.agentName !== 'Unknown' && c.agentName !== '—'
         ? c.agentName
         : (match?.fullName || match?.profile?.fullName || match?.user?.name || match?.name || 'Unknown');
-      
+
       const resolvedCode = formatAgentID(
         c.agentId && c.agentId !== '—' && !/^[0-9a-fA-F]{24}$/.test(c.agentId)
           ? c.agentId
@@ -753,7 +812,7 @@ export default function ROIList() {
       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '20px' }}>
         <div style={{ position: 'relative', maxWidth: '400px', flex: 1, minWidth: '240px' }}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '16px', height: '16px', color: 'var(--color-text-muted)' }}>
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <input
             type="text"
@@ -874,7 +933,7 @@ export default function ROIList() {
         }
       >
         <div className="kfpl-form" style={{ gap: '16px' }}>
-          
+
           {/* Recipient Type */}
           <div className="kfpl-input-group">
             <label className="kfpl-input-label">Recipient Type <span className="required">*</span></label>
@@ -1063,9 +1122,9 @@ export default function ROIList() {
                               let pct = 0;
                               const typeNormalized = String(commissionType).toLowerCase().trim();
                               if (typeNormalized === 'one-time' || typeNormalized === 'onetime' || typeNormalized === 'one-time onboarding') {
-                                pct = agent.profile?.oneTimeCommission || agent.commissionOneTime || 0;
+                                pct = getSlabRate(slabs, 'one-time', totalInv);
                               } else if (typeNormalized === 'monthly' || typeNormalized === 'recurring' || typeNormalized === 'monthly recurring') {
-                                pct = agent.profile?.monthlySlab || agent.commissionMonthly || 0;
+                                pct = getSlabRate(slabs, 'monthly', totalInv);
                               } else if (typeNormalized === 'special' || typeNormalized === 'override' || typeNormalized === 'special override') {
                                 pct = agent.profile?.specialCommission || agent.commissionSpecial || 0;
                               }
@@ -1138,8 +1197,8 @@ export default function ROIList() {
         title="Bulk Payout Import (CSV)"
         footer={
           <>
-            <button 
-              className="kfpl-btn kfpl-btn--ghost" 
+            <button
+              className="kfpl-btn kfpl-btn--ghost"
               onClick={() => {
                 setShowUploadModal(false);
                 setUploadFeedback({ validCount: 0, invalidCount: 0, previewRecords: [] });
@@ -1147,8 +1206,8 @@ export default function ROIList() {
             >
               Cancel
             </button>
-            <button 
-              className="kfpl-btn kfpl-btn--primary" 
+            <button
+              className="kfpl-btn kfpl-btn--primary"
               onClick={handleConfirmUpload}
               disabled={uploadFeedback.validCount === 0}
             >
@@ -1176,10 +1235,10 @@ export default function ROIList() {
           </div>
 
           <div style={{ border: '2px dashed var(--color-border)', borderRadius: '12px', padding: '30px 20px', textAlign: 'center', backgroundColor: 'var(--color-surface)', cursor: 'pointer', transition: 'border-color 0.2s', position: 'relative' }}>
-            <input 
-              type="file" 
-              accept=".csv" 
-              onChange={handleFileUpload} 
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleFileUpload}
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
             />
             <svg viewBox="0 0 24 24" fill="none" stroke="#0F766E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '40px', height: '40px', margin: '0 auto 12px', opacity: 0.8 }}>
@@ -1206,16 +1265,16 @@ export default function ROIList() {
                   )}
                 </div>
               </div>
-              
+
               <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '4px 8px', backgroundColor: 'var(--color-background-subtle, #F8FAFC)' }}>
                 {uploadFeedback.previewRecords.map((record, idx) => (
-                  <div 
-                    key={idx} 
-                    style={{ 
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      gap: '4px', 
-                      padding: '8px 0', 
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                      padding: '8px 0',
                       borderBottom: idx === uploadFeedback.previewRecords.length - 1 ? 'none' : '1px solid var(--color-border)',
                     }}
                   >
@@ -1250,14 +1309,14 @@ export default function ROIList() {
         title="Override Payout Warning"
         footer={
           <>
-            <button 
-              className="kfpl-btn kfpl-btn--ghost" 
+            <button
+              className="kfpl-btn kfpl-btn--ghost"
               onClick={() => setShowPayoutWarningModal(false)}
             >
               Cancel
             </button>
-            <button 
-              className="kfpl-btn kfpl-btn--danger" 
+            <button
+              className="kfpl-btn kfpl-btn--danger"
               onClick={() => {
                 setShowPayoutWarningModal(false);
                 setShowPayoutConfirmModal(true);
@@ -1273,7 +1332,7 @@ export default function ROIList() {
           <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px', borderRadius: '8px' }}>
             <span style={{ fontSize: '1.25rem' }}>⚠️</span>
             <p style={{ margin: 0, fontSize: '0.875rem', color: '#EF4444', lineHeight: '1.4', fontWeight: 500 }}>
-              WARNING: You are choosing to edit the calculated ROI payout amount manually. 
+              WARNING: You are choosing to edit the calculated ROI payout amount manually.
               This breaks the automated payout checks and should only be used for special adjustment scenarios.
             </p>
           </div>
@@ -1287,14 +1346,14 @@ export default function ROIList() {
         title="Confirm Manual Override"
         footer={
           <>
-            <button 
-              className="kfpl-btn kfpl-btn--ghost" 
+            <button
+              className="kfpl-btn kfpl-btn--ghost"
               onClick={() => setShowPayoutConfirmModal(false)}
             >
               Cancel
             </button>
-            <button 
-              className="kfpl-btn kfpl-btn--primary" 
+            <button
+              className="kfpl-btn kfpl-btn--primary"
               onClick={() => {
                 setIsAmountEditable(true);
                 setShowPayoutConfirmModal(false);
@@ -1307,7 +1366,7 @@ export default function ROIList() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text)', lineHeight: '1.4' }}>
-            Are you absolutely sure you want to unlock the Amount field for manual entry? 
+            Are you absolutely sure you want to unlock the Amount field for manual entry?
             Please double-check the final numbers before submitting.
           </p>
         </div>
@@ -1323,8 +1382,8 @@ export default function ROIList() {
         title="Confirm Payment Details"
         footer={
           <>
-            <button 
-              className="kfpl-btn kfpl-btn--ghost" 
+            <button
+              className="kfpl-btn kfpl-btn--ghost"
               onClick={() => {
                 setShowMarkPaidModal(false);
                 setMarkPaidItem(null);
@@ -1332,8 +1391,8 @@ export default function ROIList() {
             >
               Cancel
             </button>
-            <button 
-              className="kfpl-btn kfpl-btn--success" 
+            <button
+              className="kfpl-btn kfpl-btn--success"
               onClick={confirmMarkPaid}
               disabled={!markPaidForm.transactionRefId.trim()}
             >
@@ -1396,14 +1455,14 @@ export default function ROIList() {
         title="Confirm Payout Transaction"
         footer={
           <>
-            <button 
-              className="kfpl-btn kfpl-btn--ghost" 
+            <button
+              className="kfpl-btn kfpl-btn--ghost"
               onClick={() => setShowRecordPayoutConfirmModal(false)}
             >
               Cancel
             </button>
-            <button 
-              className="kfpl-btn kfpl-btn--primary" 
+            <button
+              className="kfpl-btn kfpl-btn--primary"
               onClick={confirmRecordPayout}
             >
               Confirm & Record Payout
@@ -1412,7 +1471,7 @@ export default function ROIList() {
         }
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          
+
           {/* Warning Banner */}
           <div style={{ display: 'flex', gap: '12px', alignItems: 'start', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px 16px', borderRadius: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', flexShrink: 0 }}>
@@ -1432,7 +1491,7 @@ export default function ROIList() {
 
           {/* Details Summary Card */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'var(--color-surface)', padding: '16px', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
-            
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
                 <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recipient Type</span>
@@ -1440,29 +1499,29 @@ export default function ROIList() {
                   {recipientType === 'client' ? 'Client (ROI Payout)' : 'Agent (Commission)'}
                 </strong>
               </div>
-              
+
               <div>
                 <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Name & ID</span>
                 <strong style={{ fontSize: '0.875rem', color: 'var(--color-text)' }}>
-                  {recipientType === 'client' 
+                  {recipientType === 'client'
                     ? (() => {
-                        const client = dbClients.find(c => {
-                          const id = c.user?._id || c.profile?.userId || c._id || c.id;
-                          return String(id) === String(selectedClientId);
-                        });
-                        const name = client ? (client.fullName || client.profile?.fullName || client.user?.name || client.name) : '';
-                        const code = client ? (client.clientCode || client.clientId || client.profile?.clientCode || client.user?.clientCode) : '';
-                        return client ? `${name} (${code})` : selectedClientId;
-                      })()
+                      const client = dbClients.find(c => {
+                        const id = c.user?._id || c.profile?.userId || c._id || c.id;
+                        return String(id) === String(selectedClientId);
+                      });
+                      const name = client ? (client.fullName || client.profile?.fullName || client.user?.name || client.name) : '';
+                      const code = client ? (client.clientCode || client.clientId || client.profile?.clientCode || client.user?.clientCode) : '';
+                      return client ? `${name} (${code})` : selectedClientId;
+                    })()
                     : (() => {
-                        const agent = dbAgents.find(a => {
-                          const id = a.user?._id || a.profile?.userId || a._id || a.id;
-                          return String(id) === String(selectedAgentId);
-                        });
-                        const name = agent ? (agent.profile?.fullName || agent.user?.name || agent.name) : '';
-                        const code = agent ? (agent.user?.clientCode || agent.profile?.agentId || agent.agentId) : '';
-                        return agent ? `${name} (${code})` : selectedAgentId;
-                      })()
+                      const agent = dbAgents.find(a => {
+                        const id = a.user?._id || a.profile?.userId || a._id || a.id;
+                        return String(id) === String(selectedAgentId);
+                      });
+                      const name = agent ? (agent.profile?.fullName || agent.user?.name || agent.name) : '';
+                      const code = agent ? (agent.user?.clientCode || agent.profile?.agentId || agent.agentId) : '';
+                      return agent ? `${name} (${code})` : selectedAgentId;
+                    })()
                   }
                 </strong>
               </div>
@@ -1507,14 +1566,14 @@ export default function ROIList() {
         title="Confirm Data Deletion"
         footer={
           <>
-            <button 
-              className="kfpl-btn kfpl-btn--ghost" 
+            <button
+              className="kfpl-btn kfpl-btn--ghost"
               onClick={() => setShowClearAllConfirmModal(false)}
             >
               Cancel
             </button>
-            <button 
-              className="kfpl-btn kfpl-btn--danger" 
+            <button
+              className="kfpl-btn kfpl-btn--danger"
               onClick={handleClearAllPayouts}
             >
               Yes, Clear All Data
@@ -1551,8 +1610,8 @@ export default function ROIList() {
         title="Confirm Record Deletion"
         footer={
           <>
-            <button 
-              className="kfpl-btn kfpl-btn--ghost" 
+            <button
+              className="kfpl-btn kfpl-btn--ghost"
               onClick={() => {
                 setShowDeleteConfirmModal(false);
                 setDeleteItemId(null);
@@ -1560,8 +1619,8 @@ export default function ROIList() {
             >
               Cancel
             </button>
-            <button 
-              className="kfpl-btn kfpl-btn--danger" 
+            <button
+              className="kfpl-btn kfpl-btn--danger"
               onClick={confirmDeletePayout}
             >
               Yes, Delete Record

@@ -167,8 +167,8 @@ export default function AddAgent() {
       formData.append('accountNumber', form.accountNo);
       formData.append('confirmAccountNumber', form.confirmAccountNo || form.accountNo);
       formData.append('ifscCode', form.ifsc);
-      formData.append('oneTimeCommission', form.commissionOneTime || '0');
-      formData.append('monthlySlab', form.commissionMonthly || '0');
+      formData.append('oneTimeCommission', '0');
+      formData.append('monthlySlab', '0');
       formData.append('specialCommission', form.commissionSpecial || '0');
       formData.append('nomineeName', form.nomineeName || '');
       formData.append('nomineeRelation', form.nomineeRelation || '');
@@ -301,63 +301,15 @@ export default function AddAgent() {
             <div className="kfpl-form-row-3">
               <div className="kfpl-input-group">
                 <label className="kfpl-input-label">One-Time Commission %</label>
-                <select className="kfpl-select" name="commissionOneTime" value={form.commissionOneTime} onChange={handleChange}>
-                  <option value="">Select slab</option>
-                  {(() => {
-                    const oneTimeApiSlabs = apiSlabs.filter(s => s.type === 'one-time');
-                    if (oneTimeApiSlabs.length > 0) {
-                      const formatCurrencyLocal = (val) => {
-                        if (val === null || val === undefined) val = 0;
-                        if (val === 999999999) return 'Unlimited';
-                        if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
-                        if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
-                        return `₹${val.toLocaleString('en-IN')}`;
-                      };
-                      return oneTimeApiSlabs.map(s => {
-                        const rate = s.commissionPercentage !== undefined ? s.commissionPercentage : (s.percentage || 0);
-                        const label = `Slab (${formatCurrencyLocal(s.minAmount)} - ${formatCurrencyLocal(s.maxAmount)})`;
-                        return (
-                          <option key={s._id || s.id} value={rate}>{label} — {rate}%</option>
-                        );
-                      });
-                    }
-                    return COMMISSION_SLABS.map(s => (
-                      <option key={s.id} value={s.percentage}>{s.label} — {s.percentage}%</option>
-                    ));
-                  })()}
-                </select>
+                <input className="kfpl-input" value="Automatic (Linked to Slab)" disabled={true} />
               </div>
               <div className="kfpl-input-group">
                 <label className="kfpl-input-label">Monthly Slab %</label>
-                <select className="kfpl-select" name="commissionMonthly" value={form.commissionMonthly} onChange={handleChange}>
-                  <option value="">Select slab</option>
-                  {(() => {
-                    const monthlyApiSlabs = apiSlabs.filter(s => (s.type || 'monthly') === 'monthly');
-                    if (monthlyApiSlabs.length > 0) {
-                      const formatCurrencyLocal = (val) => {
-                        if (val === null || val === undefined) val = 0;
-                        if (val === 999999999) return 'Unlimited';
-                        if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
-                        if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
-                        return `₹${val.toLocaleString('en-IN')}`;
-                      };
-                      return monthlyApiSlabs.map(s => {
-                        const rate = s.commissionPercentage !== undefined ? s.commissionPercentage : (s.percentage || 0);
-                        const label = `Slab (${formatCurrencyLocal(s.minAmount)} - ${formatCurrencyLocal(s.maxAmount)})`;
-                        return (
-                          <option key={s._id || s.id} value={rate}>{label} — {rate}%</option>
-                        );
-                      });
-                    }
-                    return COMMISSION_SLABS.map(s => (
-                      <option key={s.id} value={s.percentage}>{s.label} — {s.percentage}%</option>
-                    ));
-                  })()}
-                </select>
+                <input className="kfpl-input" value="Automatic (Linked to Slab)" disabled={true} />
               </div>
               <div className="kfpl-input-group">
-                <label className="kfpl-input-label">Special Commission %</label>
-                <input className="kfpl-input" name="commissionSpecial" type="number" step="0.1" value={form.commissionSpecial} onChange={handleChange} placeholder="Enter your special commission %" />
+                <label className="kfpl-input-label">Special Commission Slab %</label>
+                <input className="kfpl-input" name="commissionSpecial" type="number" step="0.1" value={form.commissionSpecial} onChange={handleChange} placeholder="e.g. 0.5" />
               </div>
             </div>
           </div>

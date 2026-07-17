@@ -24,6 +24,13 @@ if (import.meta.env.PROD) {
   console.warn = () => {};
 }
 
+// Prevent mouse wheel from changing values on focused number inputs globally
+document.addEventListener('wheel', function(e) {
+  if (document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.type === 'number') {
+    e.preventDefault();
+  }
+}, { passive: false });
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App />
