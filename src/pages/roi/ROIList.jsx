@@ -892,14 +892,6 @@ export default function ROIList() {
                   <td>{rec.paidAt || '—'}</td>
                   <td>
                     <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-start', alignItems: 'center' }}>
-                      {rec.status === 'pending' && (
-                        <button
-                          className="kfpl-btn kfpl-btn--success kfpl-btn--sm"
-                          onClick={() => handleMarkPaidClick(rec.id, rec.recordType.toLowerCase())}
-                        >
-                          Mark Paid
-                        </button>
-                      )}
                       <button
                         className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
                         style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-danger)' }}
@@ -1372,81 +1364,7 @@ export default function ROIList() {
         </div>
       </Modal>
 
-      {/* Mark Payout as Paid Modal */}
-      <Modal
-        isOpen={showMarkPaidModal}
-        onClose={() => {
-          setShowMarkPaidModal(false);
-          setMarkPaidItem(null);
-        }}
-        title="Confirm Payment Details"
-        footer={
-          <>
-            <button
-              className="kfpl-btn kfpl-btn--ghost"
-              onClick={() => {
-                setShowMarkPaidModal(false);
-                setMarkPaidItem(null);
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              className="kfpl-btn kfpl-btn--success"
-              onClick={confirmMarkPaid}
-              disabled={!markPaidForm.transactionRefId.trim()}
-            >
-              Confirm & Save Payment
-            </button>
-          </>
-        }
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', background: 'rgba(15, 118, 110, 0.05)', border: '1px solid rgba(15, 118, 110, 0.2)', padding: '12px 16px', borderRadius: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '38px', height: '38px', borderRadius: '50%', backgroundColor: 'rgba(15, 118, 110, 0.1)', flexShrink: 0 }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="#0F766E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
-                <rect x="2" y="4" width="20" height="16" rx="2" />
-                <line x1="2" y1="10" x2="22" y2="10" />
-              </svg>
-            </div>
-            <div>
-              <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#0F766E' }}>Mark Payout as Paid</h4>
-              <p style={{ margin: '2px 0 0', fontSize: '0.8125rem', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
-                Please provide the payment mode and unique transaction reference ID to complete the transition.
-              </p>
-            </div>
-          </div>
 
-          <div className="kfpl-form-group">
-            <label className="kfpl-form-label" style={{ fontWeight: 600, marginBottom: '6px', display: 'block', fontSize: '0.8125rem' }}>Payment Mode</label>
-            <select
-              className="kfpl-form-select"
-              value={markPaidForm.paymentMode}
-              onChange={(e) => setMarkPaidForm(prev => ({ ...prev, paymentMode: e.target.value }))}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-surface)', fontSize: '0.875rem' }}
-            >
-              <option value="Bank Transfer">Bank Transfer</option>
-              <option value="UPI">UPI</option>
-              <option value="Cheque">Cheque</option>
-              <option value="NEFT">NEFT</option>
-              <option value="RTGS">RTGS</option>
-            </select>
-          </div>
-
-          <div className="kfpl-form-group">
-            <label className="kfpl-form-label" style={{ fontWeight: 600, marginBottom: '6px', display: 'block', fontSize: '0.8125rem' }}>Transaction Reference ID <span style={{ color: 'red' }}>*</span></label>
-            <input
-              type="text"
-              className="kfpl-form-input"
-              placeholder="e.g. TXN-1029384756"
-              value={markPaidForm.transactionRefId}
-              onChange={(e) => setMarkPaidForm(prev => ({ ...prev, transactionRefId: e.target.value }))}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-surface)', fontSize: '0.875rem' }}
-              required
-            />
-          </div>
-        </div>
-      </Modal>
 
       {/* Confirm Record Payout Modal */}
       <Modal
