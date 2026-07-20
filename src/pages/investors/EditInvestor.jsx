@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useToast } from '../../components/ui/Toast';
 import Badge from '../../components/ui/Badge';
+import FileDropzone from '../../components/ui/FileDropzone';
 import { apiRequest } from '../../config/apiHelper';
 
 const COMMISSION_PRESETS = [
@@ -52,6 +53,14 @@ export default function EditInvestor() {
   const [loading, setLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
 
+  // Document file upload states
+  const [existingDocs, setExistingDocs] = useState({});
+  const [panDocFile, setPanDocFile] = useState(null);
+  const [aadhaarDocFile, setAadhaarDocFile] = useState(null);
+  const [bankProofDocFile, setBankProofDocFile] = useState(null);
+  const [agreementDocFile, setAgreementDocFile] = useState(null);
+  const [nomineeProofDocFile, setNomineeProofDocFile] = useState(null);
+
   const [form, setForm] = useState({
     fullName: '', email: '', phone: '', dob: '', address: '',
     pan: '', bankName: '', accountNo: '', ifsc: '',
@@ -63,7 +72,7 @@ export default function EditInvestor() {
     commissionSlab: 'slab-2',
     commissionOneTime: '1.5',
     commissionMonthly: '0.75',
-    roiPercentage: '1.2',
+    roiPercentage: '0',
     contractStartDate: '',
     contractEndDate: '',
     extendContractDate: '',
@@ -127,14 +136,21 @@ export default function EditInvestor() {
           commissionSlab: profile.commissionSlab || 'slab-2',
           commissionOneTime: String(profile.commissionOneTime || '1.5'),
           commissionMonthly: String(profile.commissionMonthly || '0.75'),
-          roiPercentage: String(summary.monthlyRoi || profile.monthlyRoi || '1.2'),
+          roiPercentage: String(summary.monthlyRoi ?? profile.monthlyRoi ?? 0),
           contractStartDate: formatDateToInputVal(profile.contractStartDate || profile.joinDate || profile.createdAt),
           contractEndDate: formatDateToInputVal(profile.contractEndDate),
           extendContractDate: formatDateToInputVal(profile.extendContractDate || profile.contractExtendedDate),
         });
 
-        // Set selected agent ID
+        // Set selected agent ID and existing docs
         setSelectedAgentId(profile.assignedAgent || '');
+        setExistingDocs({
+          panDocument: profile.panDocument || '',
+          aadhaarDocument: profile.aadhaarDocument || '',
+          bankProofDocument: profile.bankProofDocument || '',
+          agreementDocument: profile.agreementDocument || '',
+          nomineeProofDocument: profile.nomineeProofDocument || '',
+        });
       } catch (err) {
         console.error('Failed to fetch client details:', err);
         addToast(err.message || 'Error fetching client details', 'error', 'Error');
@@ -171,38 +187,41 @@ export default function EditInvestor() {
 
     try {
       // Map form fields to API PATCH body structure
-      const payload = {
-        fullName: form.fullName,
-        email: form.email,
-        phone: form.phone,
-        dob: form.dob,
-        address: form.address,
-        panNumber: form.pan,
-        bankName: form.bankName,
-        accountNumber: form.accountNo,
-        confirmAccountNumber: form.accountNo,
-        ifscCode: form.ifsc,
-        tier: form.category,
-        status: form.status,
-        riskProfile: form.riskProfile,
-        residencyStatus: form.citizenship,
-        monthlyRoi: parseFloat(form.roiPercentage) || 1.2,
-        assignedAgent: selectedAgentId || 'Direct Client (No Agent)',
-        contractStartDate: form.contractStartDate,
-        contractEndDate: form.contractEndDate,
-        extendContractDate: form.extendContractDate || '',
-        contractExtendedDate: form.extendContractDate || '',
-        joinDate: form.contractStartDate,
-        nomineeName: form.nomineeName,
-        nomineeRelation: form.nomineeRelation,
-        nomineePhone: form.nomineeContact,
-        nomineeEmail: form.nomineeEmail,
-        nomineeResidency: form.nomineeCitizenship,
-      };
+      const formData = new FormData();
+      formData.append('fullName', form.fullName);
+      formData.append('email', form.email);
+      formData.append('phone', form.phone);
+      if (form.dob) formData.append('dob', form.dob);
+      if (form.address) formData.append('address', form.address);
+      formData.append('panNumber', form.pan);
+      formData.append('bankName', form.bankName);
+      formData.append('accountNumber', form.accountNo);
+      formData.append('confirmAccountNumber', form.accountNo);
+      formData.append('ifscCode', form.ifsc);
+      formData.append('tier', form.category);
+      formData.append('status', form.status);
+      formData.append('riskProfile', form.riskProfile);
+      formData.append('residencyStatus', form.citizenship);
+      formData.append('monthlyRoi', String(parseFloat(form.roiPercentage) || 0));
+      formData.append('assignedAgent', selectedAgentId || 'Direct Client (No Agent)');
+      if (form.contractStartDate) formData.append('contractStartDate', form.contractStartDate);
+      if (form.contractEndDate) formData.append('contractEndDate', form.contractEndDate);
+      if (form.extendContractDate) formData.append('extendContractDate', form.extendContractDate);
+      formData.append('nomineeName', form.nomineeName || '');
+      formData.append('nomineeRelation', form.nomineeRelation || '');
+      formData.append('nomineePhone', form.nomineeContact || '');
+      formData.append('nomineeEmail', form.nomineeEmail || '');
+      formData.append('nomineeResidency', form.nomineeCitizenship);
+
+      if (panDocFile) formData.append('panDocument', panDocFile);
+      if (aadhaarDocFile) formData.append('aadhaarDocument', aadhaarDocFile);
+      if (bankProofDocFile) formData.append('bankProofDocument', bankProofDocFile);
+      if (agreementDocFile) formData.append('agreementDocument', agreementDocFile);
+      if (nomineeProofDocFile) formData.append('nomineeProofDocument', nomineeProofDocFile);
 
       await apiRequest(`/api/super-admin/clients/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify(payload),
+        body: formData,
       });
 
       addToast(`Client "${form.fullName}" updated successfully!`, 'success', 'Client Updated');
@@ -450,6 +469,20 @@ export default function EditInvestor() {
                 <option value="National (Domestic)">National (Domestic)</option>
                 <option value="International">International</option>
               </select>
+            </div>
+          </div>
+
+          {/* Document Re-upload Section (2x2 Grid Layout) */}
+          <div className="kfpl-form-section">
+            <div className="kfpl-form-section-title">KYC Document Uploads (Optional Re-upload)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
+              <FileDropzone label={form.citizenship === 'International' ? 'Tax ID Upload' : 'PAN Card Upload'} multiple={false} existingFileUrl={existingDocs.panDocument} onFilesChange={(files) => setPanDocFile(files[0] || null)} />
+              <FileDropzone label={form.citizenship === 'International' ? 'Passport / National ID Card Upload' : 'ID Proof Upload (Aadhaar / DL / Passport)'} multiple={false} existingFileUrl={existingDocs.aadhaarDocument} onFilesChange={(files) => setAadhaarDocFile(files[0] || null)} />
+              <FileDropzone label="Bank Details Document" multiple={false} existingFileUrl={existingDocs.bankProofDocument} onFilesChange={(files) => setBankProofDocFile(files[0] || null)} />
+              <FileDropzone label="Signed Investment Agreement" multiple={false} existingFileUrl={existingDocs.agreementDocument} onFilesChange={(files) => setAgreementDocFile(files[0] || null)} />
+              <div style={{ gridColumn: '1 / -1' }}>
+                <FileDropzone label="Nominee ID Proof Document" multiple={false} existingFileUrl={existingDocs.nomineeProofDocument} onFilesChange={(files) => setNomineeProofDocFile(files[0] || null)} />
+              </div>
             </div>
           </div>
         </div>

@@ -4,7 +4,7 @@
    ============================================================ */
 
 import { useState } from 'react';
-import { formatCurrency } from '../../data/mockData';
+import { formatCurrency } from '../../utils/formatters';
 
 export default function PieChart({ data, size = 200, strokeWidth = 28, isCurrency = false }) {
   if (!data || data.length === 0) {

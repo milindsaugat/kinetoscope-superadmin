@@ -33,7 +33,7 @@ function getFileIcon(type) {
   );
 }
 
-export default function FileDropzone({ onFilesChange, multiple = true, label = 'Agreement Document' }) {
+export default function FileDropzone({ onFilesChange, multiple = false, label = 'Document Upload', existingFileUrl = '' }) {
   const [files, setFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState('');
@@ -52,7 +52,6 @@ export default function FileDropzone({ onFilesChange, multiple = true, label = '
         setError(`"${file.name}" — File too large. Max ${MAX_SIZE_MB}MB allowed.`);
         continue;
       }
-      // Avoid duplicates
       if (files.some(f => f.name === file.name && f.size === file.size)) continue;
       validFiles.push(file);
     }
@@ -97,13 +96,40 @@ export default function FileDropzone({ onFilesChange, multiple = true, label = '
   const handleInputChange = (e) => {
     const selected = Array.from(e.target.files);
     if (selected.length > 0) validateAndAdd(selected);
-    // Reset input so same file can be re-selected
     e.target.value = '';
   };
 
   return (
-    <div className="kfpl-form-section">
-      <div className="kfpl-form-section-title">{label}</div>
+    <div className="kfpl-form-section" style={{ padding: '12px', border: '1px solid #E2E8F0', borderRadius: '10px', background: '#F8FAFC' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+        <div style={{ fontSize: '0.8125rem', fontWeight: '700', color: 'var(--color-navy)' }}>{label}</div>
+        {existingFileUrl && files.length === 0 && (
+          <span style={{ fontSize: '0.7rem', color: '#16A34A', fontWeight: '700', background: '#DCFCE7', padding: '2px 8px', borderRadius: '12px', border: '1px solid #BBF7D0' }}>
+            ✓ File Uploaded
+          </span>
+        )}
+      </div>
+
+      {/* Show Existing File Box if uploaded & no new file selected */}
+      {existingFileUrl && files.length === 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: '#FFFFFF', borderRadius: '8px', border: '1px solid #CBD5E1', marginBottom: '8px' }}>
+          {existingFileUrl.match(/\.(jpeg|jpg|png|webp)/i) ? (
+            <img src={existingFileUrl} alt={label} style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '4px' }} />
+          ) : (
+            <div style={{ width: '36px', height: '36px', borderRadius: '4px', background: '#FEF3C7', color: '#B45309', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              📄
+            </div>
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              Existing Document
+            </div>
+            <a href={existingFileUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.72rem', color: '#0284C7', textDecoration: 'underline' }}>
+              View Current File ↗
+            </a>
+          </div>
+        </div>
+      )}
 
       <div
         className={`kfpl-dropzone ${isDragging ? 'active' : ''}`}
@@ -111,6 +137,7 @@ export default function FileDropzone({ onFilesChange, multiple = true, label = '
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={handleClick}
+        style={{ padding: '14px', borderRadius: '8px', border: '1.5px dashed #CBD5E1', textAlign: 'center', cursor: 'pointer', background: '#FFFFFF' }}
       >
         <input
           ref={inputRef}
@@ -121,66 +148,71 @@ export default function FileDropzone({ onFilesChange, multiple = true, label = '
           style={{ display: 'none' }}
         />
 
-        <div className="kfpl-dropzone-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" width="40" height="40">
+        <div className="kfpl-dropzone-icon" style={{ marginBottom: '4px' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" width="28" height="28">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
           </svg>
         </div>
-        <div className="kfpl-dropzone-text">
-          {isDragging ? 'Drop files here…' : 'Drag & drop files here, or click to browse'}
+        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>
+          {isDragging ? 'Drop file here…' : existingFileUrl ? 'Click to replace document' : 'Click or drag file to upload'}
         </div>
-        <div className="kfpl-dropzone-hint">PDF, JPG, PNG up to 10MB</div>
+        <div style={{ fontSize: '0.7rem', color: '#94A3B8', marginTop: '2px' }}>PDF, JPG, PNG (Max 10MB)</div>
       </div>
 
       {error && (
         <div style={{
-          fontSize: '0.8125rem',
+          fontSize: '0.75rem',
           color: '#EF4444',
-          padding: '8px 12px',
+          padding: '6px 10px',
           background: 'rgba(239, 68, 68, 0.08)',
-          borderRadius: '8px',
+          borderRadius: '6px',
+          marginTop: '6px',
           display: 'flex',
           alignItems: 'center',
           gap: '6px',
         }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="14" height="14">
-            <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
-          </svg>
-          {error}
+          ⚠️ {error}
         </div>
       )}
 
+      {/* New Selected Files Live Preview */}
       {files.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {files.map((file, i) => (
-            <div key={`${file.name}-${i}`} className="kfpl-dropzone-file">
-              {getFileIcon(file.type)}
-              <span className="kfpl-dropzone-file-name">{file.name}</span>
-              <span className="kfpl-dropzone-file-size">{formatFileSize(file.size)}</span>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); removeFile(i); }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--color-text-muted)',
-                  padding: '4px',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  transition: 'color 0.15s, background 0.15s',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = '#EF4444'; e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-muted)'; e.currentTarget.style.background = 'none'; }}
-                title="Remove file"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
-            </div>
-          ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
+          {files.map((file, i) => {
+            const isImage = file.type.startsWith('image/');
+            const previewBlobUrl = isImage ? URL.createObjectURL(file) : null;
+            return (
+              <div key={`${file.name}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: '#FFFFFF', borderRadius: '6px', border: '1px solid #10B981' }}>
+                {isImage && previewBlobUrl ? (
+                  <img src={previewBlobUrl} alt="Preview" style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '4px' }} />
+                ) : (
+                  getFileIcon(file.type)
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {file.name}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{formatFileSize(file.size)}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#EF4444',
+                    padding: '2px 6px',
+                    fontSize: '0.85rem',
+                    fontWeight: 'bold'
+                  }}
+                  title="Remove file"
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

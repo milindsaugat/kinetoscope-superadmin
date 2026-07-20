@@ -32,6 +32,7 @@ export default function EditAgent() {
   });
 
   // File Upload states
+  const [existingDocs, setExistingDocs] = useState({});
   const [panDocFile, setPanDocFile] = useState(null);
   const [idProofDocFile, setIdProofDocFile] = useState(null);
   const [bankProofDocFile, setBankProofDocFile] = useState(null);
@@ -131,6 +132,13 @@ export default function EditAgent() {
           nomineeEmail: normalizedAg.nomineeEmail,
           citizenship: normalizedAg.citizenship,
           nomineeCitizenship: normalizedAg.nomineeCitizenship === 'International' ? 'International' : 'National',
+        });
+
+        setExistingDocs({
+          panDocument: profile.panDocument || '',
+          idProofDocument: profile.idProofDocument || '',
+          bankProofDocument: profile.bankProofDocument || '',
+          nomineeProofDocument: profile.nomineeProofDocument || '',
         });
       } catch (err) {
         console.error('Failed to load agent profile:', err);
@@ -329,52 +337,16 @@ export default function EditAgent() {
             </div>
           </div>
 
-          {/* KYC Document Uploads */}
-          <FileDropzone label={form.citizenship === 'International' ? 'Tax ID Upload' : 'PAN Card Upload'} multiple={false} onFilesChange={(files) => setPanDocFile(files[0] || null)} />
-          <FileDropzone label={form.citizenship === 'International' ? 'International Passport / National ID Card Upload' : 'ID Proof Upload (Aadhaar / Driving License / Passport)'} multiple={false} onFilesChange={(files) => setIdProofDocFile(files[0] || null)} />
-          <FileDropzone label="Bank Details Document (Cancelled Cheque / Bank Statement)" multiple={false} onFilesChange={(files) => setBankProofDocFile(files[0] || null)} />
-
-          {/* Nominee Details */}
+          {/* KYC & Nominee Document Uploads (2x2 Grid Layout) */}
           <div className="kfpl-form-section">
-            <div className="kfpl-form-section-title">Nominee Details</div>
-            <div className="kfpl-form-row">
-              <div className="kfpl-input-group">
-                <label className="kfpl-input-label">Nominee Name {(form.nomineeRelation || form.nomineeContact) && <span className="required">*</span>}</label>
-                <input className="kfpl-input" name="nomineeName" value={form.nomineeName} onChange={handleChange} placeholder="Enter nominee's full name" required={!!(form.nomineeRelation || form.nomineeContact)} />
-              </div>
-              <div className="kfpl-input-group">
-                <label className="kfpl-input-label">Nominee Relation</label>
-                <select className="kfpl-select" name="nomineeRelation" value={form.nomineeRelation} onChange={handleChange} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-                  <option value="">Select Relation</option>
-                  <option value="Spouse">Spouse</option>
-                  <option value="Parent">Parent</option>
-                  <option value="Child">Child</option>
-                  <option value="Sibling">Sibling</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-            </div>
-            <div className="kfpl-form-row-3">
-              <div className="kfpl-input-group">
-                <label className="kfpl-input-label">Nominee Contact Number</label>
-                <input className="kfpl-input" name="nomineeContact" value={form.nomineeContact} onChange={handleChange} placeholder="Enter contact number" />
-              </div>
-              <div className="kfpl-input-group">
-                <label className="kfpl-input-label">Nominee Email Address</label>
-                <input className="kfpl-input" name="nomineeEmail" type="email" value={form.nomineeEmail} onChange={handleChange} placeholder="nominee@email.com" />
-              </div>
-              <div className="kfpl-input-group">
-                <label className="kfpl-input-label">Nominee Residency / Citizenship</label>
-                <select className="kfpl-select" name="nomineeCitizenship" value={form.nomineeCitizenship} onChange={handleChange} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-                  <option value="National">National (Domestic)</option>
-                  <option value="International">International</option>
-                </select>
-              </div>
+            <div className="kfpl-form-section-title">KYC Document Uploads (Optional Re-upload)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
+              <FileDropzone label={form.citizenship === 'International' ? 'Tax ID Upload' : 'PAN Card Upload'} multiple={false} existingFileUrl={existingDocs.panDocument} onFilesChange={(files) => setPanDocFile(files[0] || null)} />
+              <FileDropzone label={form.citizenship === 'International' ? 'Passport / National ID' : 'ID Proof (Aadhaar / DL / Passport)'} multiple={false} existingFileUrl={existingDocs.idProofDocument} onFilesChange={(files) => setIdProofDocFile(files[0] || null)} />
+              <FileDropzone label="Bank Details Document" multiple={false} existingFileUrl={existingDocs.bankProofDocument} onFilesChange={(files) => setBankProofDocFile(files[0] || null)} />
+              <FileDropzone label={form.nomineeCitizenship === 'International' ? 'Nominee Passport / ID Upload' : 'Nominee ID Proof Document'} multiple={false} existingFileUrl={existingDocs.nomineeProofDocument} onFilesChange={(files) => setNomineeProofDocFile(files[0] || null)} />
             </div>
           </div>
-
-          {/* Nominee ID Proof Upload */}
-          <FileDropzone label={form.nomineeCitizenship === 'International' ? 'Nominee International Passport / National ID Card Upload' : 'Nominee ID Proof (Aadhaar / Driving License / Passport)'} multiple={false} onFilesChange={(files) => setNomineeProofDocFile(files[0] || null)} />
 
           {/* Actions */}
           <div className="kfpl-form-actions">

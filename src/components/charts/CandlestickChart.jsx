@@ -4,7 +4,7 @@
    ============================================================ */
 
 import { useState } from 'react';
-import { formatCurrency } from '../../data/mockData';
+import { formatCurrency } from '../../utils/formatters';
 
 const BULL_COLOR = '#2E7D32';
 const BEAR_COLOR = '#C62828';

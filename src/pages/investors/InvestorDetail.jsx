@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
-import { formatCurrency } from '../../data/mockData';
+import { formatCurrency } from '../../utils/formatters';
 import { useToast } from '../../components/ui/Toast';
 import { apiRequest } from '../../config/apiHelper';
 import { getApiUrl } from '../../config/apiUrl';
@@ -27,6 +27,52 @@ const formatClientID = (rawId) => {
 };
 
 /* ── helpers for downloading statements ─────────────────────── */
+/* Description Formatter for Multi-line / Bullet Point Texts */
+const renderFormattedDescription = (desc) => {
+  if (!desc) return null;
+  const lines = desc.split('\n').map(l => l.trim()).filter(Boolean);
+
+  if (lines.length === 1 && !lines[0].endsWith(':') && !lines[0].includes('•')) {
+    return (
+      <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', display: 'block', marginTop: '3px', lineHeight: 1.4 }}>
+        {desc}
+      </span>
+    );
+  }
+
+  return (
+    <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginTop: '4px', lineHeight: 1.5 }}>
+      {lines.map((line, idx) => {
+        const isHeader = line.endsWith(':') || line.toLowerCase().includes('points:') || line.toLowerCase().includes('includes:');
+        if (isHeader) {
+          return (
+            <div key={idx} style={{ fontWeight: 700, color: 'var(--color-navy)', marginTop: idx > 0 ? '8px' : '3px', marginBottom: '4px', fontSize: '0.825rem' }}>
+              {line}
+            </div>
+          );
+        }
+
+        const isFirstIntro = idx === 0 && !line.startsWith('•') && !line.startsWith('-') && !line.startsWith('*') && !/^\d+\./.test(line);
+        if (isFirstIntro) {
+          return (
+            <div key={idx} style={{ color: 'var(--color-text-muted)', fontSize: '0.8125rem', marginBottom: '6px', lineHeight: 1.4 }}>
+              {line}
+            </div>
+          );
+        }
+
+        const cleanText = line.replace(/^[•\-\*\d+\.]+\s*/, '');
+        return (
+          <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginTop: '3px', paddingLeft: '4px' }}>
+            <span style={{ color: '#10B981', fontWeight: 'bold', fontSize: '0.8rem', lineHeight: '1.3' }}>✓</span>
+            <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.8rem', lineHeight: 1.35 }}>{cleanText}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 function downloadClientROISingleCSV(roi, client) {
   const cName = client.name || client.fullName || 'Client';
   const rows = [
@@ -433,10 +479,10 @@ export default function InvestorDetail() {
 
   const [localRiskProfile, setLocalRiskProfile] = useState('Conservative');
   const [localStatus, setLocalStatus] = useState('active');
-  const [localRoiPercentage, setLocalRoiPercentage] = useState(1.2);
+  const [localRoiPercentage, setLocalRoiPercentage] = useState(0);
   const [showRoiEditModal, setShowRoiEditModal] = useState(false);
   const [roiEditStep, setRoiEditStep] = useState(1);
-  const [roiInputVal, setRoiInputVal] = useState('1.2');
+  const [roiInputVal, setRoiInputVal] = useState('0');
   const [verifiedDocs, setVerifiedDocs] = useState({});
   const [viewingDoc, setViewingDoc] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -522,6 +568,32 @@ export default function InvestorDetail() {
       console.warn('Failed to parse client detail cache:', e);
     }
 
+  const handleVerifyDocument = async (docLabel) => {
+    try {
+      let fieldKey = 'panDocument';
+      if (docLabel.includes('ID Proof') || docLabel.includes('Aadhaar')) fieldKey = 'aadhaarDocument';
+      else if (docLabel.includes('Bank')) fieldKey = 'bankProofDocument';
+      else if (docLabel.includes('Agreement')) fieldKey = 'agreementDocument';
+      else if (docLabel.includes('Nominee')) fieldKey = 'nomineeProofDocument';
+
+      setVerifiedDocs(prev => ({ ...prev, [docLabel]: true }));
+
+      const res = await apiRequest(`/api/super-admin/clients/${id}/verify-document`, {
+        method: 'PATCH',
+        body: JSON.stringify({ documentField: fieldKey })
+      });
+
+      if (res && (res.success || res.status === 'success')) {
+        addToast(`Document "${docLabel}" verified successfully!`, 'success');
+      } else {
+        addToast(res?.message || 'Failed to verify document.', 'error');
+      }
+    } catch (err) {
+      console.error('Verify document error:', err);
+      addToast(err.message || 'Error verifying document.', 'error');
+    }
+  };
+
     const fetchAllClientData = async () => {
       try {
         const clientRes = await apiRequest(`/api/super-admin/clients/${id}`).catch(err => {
@@ -604,7 +676,7 @@ export default function InvestorDetail() {
             kyc: kycStatus,
             riskProfile: header.riskProfile || profile.riskProfile || 'Conservative',
             totalInvestment: summary.totalInvestment || profile.totalPortfolioValue || 0,
-            roiPercentage: summary.monthlyRoi || profile.monthlyRoi || 1.2,
+            roiPercentage: summary.monthlyRoi ?? profile.monthlyRoi ?? 0,
             activeSegments: summary.activeInvestments || 0,
             pan: profile.panNumber || profile.pan || '—',
             aadhaar: profile.aadhaarNumber || profile.aadhaar || '—',
@@ -654,7 +726,7 @@ export default function InvestorDetail() {
           }).map(r => ({
             _id: r.id || r._id,
             payoutMonth: r.month || r.period || '—',
-            roiRate: r.roiPercentage || 1.2,
+            roiRate: r.roiPercentage ?? 0,
             amount: Number(r.amount || 0),
             status: r.status || 'pending',
             processedDate: r.paidAt || r.date || '—',
@@ -737,7 +809,7 @@ export default function InvestorDetail() {
       }).map(r => ({
         _id: r.id || r._id,
         payoutMonth: r.month || r.period || '—',
-        roiRate: r.roiPercentage || 1.2,
+        roiRate: r.roiPercentage ?? 0,
         amount: Number(r.amount || 0),
         status: r.status || 'pending',
         processedDate: r.paidAt || r.date || '—',
@@ -835,6 +907,11 @@ export default function InvestorDetail() {
         body: JSON.stringify({ monthlyRoi: newRoi })
       });
       setLocalRoiPercentage(newRoi);
+      setInvestor(prev => prev ? { ...prev, roiPercentage: newRoi } : prev);
+      try {
+        localStorage.removeItem(`kfpl_super_admin_client_detail_cache_${id}`);
+        localStorage.removeItem(`kfpl_agent_client_detail_${id}`);
+      } catch (e) {}
       addToast(`Monthly ROI % updated to ${newRoi}%`, 'success', 'ROI Updated');
       setShowRoiEditModal(false);
       setRoiEditStep(1);
@@ -892,7 +969,7 @@ export default function InvestorDetail() {
     } catch (e) {}
     
     if (list.length === 0 && investor && investor.totalInvestment) {
-      const roiPercent = localRoiPercentage || investor.roiPercentage || 1.2;
+      const roiPercent = localRoiPercentage ?? investor.roiPercentage ?? 0;
       const monthlyROIVal = Math.round((investor.totalInvestment * roiPercent) / 100);
       const start = investor.rawContractStartDate ? new Date(investor.rawContractStartDate) : new Date();
       if (isNaN(start.getTime())) {
@@ -957,7 +1034,7 @@ export default function InvestorDetail() {
         ...r,
         month: r.month || r.payoutMonth || r.period || '—',
         payoutMonth: r.payoutMonth || r.month || r.period || '—',
-        roiRate: r.roiRate || r.roiPercentage || localRoiPercentage || 1.2,
+        roiRate: r.roiRate ?? r.roiPercentage ?? localRoiPercentage ?? 0,
         amount: Number(r.amount || 0),
         status: isPaidMock ? 'Paid' : (r.status || 'pending'),
         processedDate: isPaidMock ? new Date().toLocaleDateString('en-IN') : (r.processedDate || r.paidAt || r.date || '—'),
@@ -977,8 +1054,8 @@ export default function InvestorDetail() {
         segment: 'Film Making',
         amount: investor.totalInvestment,
         investmentAmount: investor.totalInvestment,
-        roi: investor.roiPercentage || 1.2,
-        roiPercentage: investor.roiPercentage || 1.2,
+        roi: investor.roiPercentage ?? 0,
+        roiPercentage: investor.roiPercentage ?? 0,
         riskPercentage: 10,
         allocationDate: investor.rawContractStartDate || null,
         investmentDate: investor.rawContractStartDate || null,
@@ -993,9 +1070,9 @@ export default function InvestorDetail() {
   const allDocsVerified = documentsList.length > 0 && documentsList.every(doc => !!verifiedDocs[doc.name || doc.label]);
 
   const riskMap = {
-    'Conservative': 'active', // green
-    'Moderate': 'gold',       // gold
-    'Aggressive': 'rejected'   // red
+    conservative: 'conservative',
+    moderate: 'moderate',
+    aggressive: 'aggressive'
   };
 
   const handleRiskProfileChange = async (e) => {
@@ -1248,7 +1325,7 @@ export default function InvestorDetail() {
             <div className="kfpl-detail-meta" style={{ marginTop: '8px' }}>
               <Badge status={investor.category}>{investor.category} Tier</Badge>
               <Badge status={localStatus}>{localStatus}</Badge>
-              <Badge status={riskMap[localRiskProfile]}>{localRiskProfile} Risk</Badge>
+              <Badge status={riskMap[String(localRiskProfile || '').toLowerCase()] || 'conservative'}>{localRiskProfile} Risk</Badge>
             </div>
           </div>
         </div>
@@ -1673,7 +1750,7 @@ export default function InvestorDetail() {
                     roiHistory.map(roi => (
                       <tr key={roi._id || roi.id}>
                         <td className="kfpl-table-cell-primary">{roi.payoutMonth || roi.month}</td>
-                        <td><strong>{roi.roiRate || roi.roiPercentage || localRoiPercentage || 1.2}%</strong></td>
+                        <td><strong>{roi.roiRate ?? roi.roiPercentage ?? localRoiPercentage ?? 0}%</strong></td>
                         <td className="font-semibold">{formatCurrency(roi.amount || 0)}</td>
                         <td>
                           {(() => {
@@ -1744,53 +1821,76 @@ export default function InvestorDetail() {
         </div>
       )}
 
-      {activeTab === 'perks' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div className="kfpl-page-header" style={{ marginBottom: '4px' }}>
-            <div>
-              <h3 className="kfpl-form-card-title" style={{ margin: 0 }}>Assigned Loyalty Perks</h3>
-              <p className="kfpl-page-subtitle" style={{ margin: '2px 0 0 0' }}>Client benefits based on their {investor.category} recognition tier</p>
-            </div>
-          </div>
+      {activeTab === 'perks' && (() => {
+        const perksList = (() => {
+          if (!perksData) return [];
+          if (Array.isArray(perksData)) return perksData;
+          if (perksData.perks && Array.isArray(perksData.perks)) return perksData.perks;
+          if (perksData.data?.perks && Array.isArray(perksData.data.perks)) return perksData.data.perks;
+          return [];
+        })();
 
-          {tabLoading ? (
-            <div className="kfpl-detail-info-card"><div style={{ textAlign: 'center', padding: '48px', color: 'var(--color-text-muted)' }}>Loading perks...</div></div>
-          ) : perksList.length === 0 ? (
-            <div className="kfpl-detail-info-card">
-              <div className="kfpl-empty" style={{ padding: '40px' }}>
-                <div className="kfpl-empty-title">No perks assigned</div>
-                <div className="kfpl-empty-text">Upgrade client recognition tier or assign custom perks.</div>
+        const tierStyles = {
+          silver: { bg: 'rgba(156, 163, 175, 0.12)', color: '#6B7280', border: '#D1D5DB' },
+          gold: { bg: 'rgba(245, 158, 11, 0.1)', color: '#D97706', border: '#FCD34D' },
+          platinum: { bg: 'rgba(75, 85, 99, 0.1)', color: '#4B5563', border: '#CBD5E1' },
+          diamond: { bg: 'rgba(6, 182, 212, 0.1)', color: '#0891B2', border: '#A5F3FC' },
+        };
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div className="kfpl-page-header" style={{ marginBottom: '4px' }}>
+              <div>
+                <h3 className="kfpl-form-card-title" style={{ margin: 0 }}>Assigned Loyalty Perks</h3>
+                <p className="kfpl-page-subtitle" style={{ margin: '2px 0 0 0' }}>Client benefits based on their {investor?.category || 'current'} recognition tier</p>
               </div>
             </div>
-          ) : (
-            <div className="kfpl-perks-grid">
-              {perksList.map((perk, i) => {
-                const perkName = perk.title || perk.name || perk;
-                const perkDesc = perk.description || perkDetails[perkName]?.desc || 'Assigned platform benefit and VIP privileges.';
-                const perkIcon = perkDetails[perkName]?.icon || '⭐';
-                const perkBadge = (perk.badge || investor.category || 'silver').toLowerCase();
-                return (
-                  <div key={i} className="kfpl-perk-card" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                    <div className="kfpl-perk-tier-stripe" style={{ background: 'linear-gradient(90deg, #10B981 0%, #059669 100%)' }} />
-                    <div className="kfpl-perk-card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px 0' }}>
-                      <div className="kfpl-perk-icon-wrap" style={{ background: 'var(--color-gold-light)', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>
-                        <span style={{ fontSize: '1.25rem' }}>{perkIcon}</span>
+
+            {tabLoading ? (
+              <div className="kfpl-detail-info-card"><div style={{ textAlign: 'center', padding: '48px', color: 'var(--color-text-muted)' }}>Loading perks...</div></div>
+            ) : perksList.length === 0 ? (
+              <div className="kfpl-detail-info-card">
+                <div className="kfpl-empty" style={{ padding: '40px' }}>
+                  <div className="kfpl-empty-title">No perks assigned</div>
+                  <div className="kfpl-empty-text">Upgrade client recognition tier or assign custom perks.</div>
+                </div>
+              </div>
+            ) : (
+              <div className="kfpl-perks-grid">
+                {perksList.map((perk, i) => {
+                  const perkName = typeof perk === 'string' ? perk : (perk.title || perk.name || '');
+                  const perkDesc = typeof perk === 'object' ? (perk.description || '') : '';
+                  const perkBadge = (typeof perk === 'object' && perk.tier ? perk.tier : (investor?.category || 'silver')).toLowerCase();
+                  const styleConfig = tierStyles[perkBadge] || tierStyles.silver;
+                  return (
+                    <div key={i} className="kfpl-perk-card" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                      <div className="kfpl-perk-tier-stripe" style={{ background: styleConfig.color }} />
+                      <div className="kfpl-perk-card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px 0' }}>
+                        <div className="kfpl-perk-icon-wrap" style={{ background: styleConfig.bg, width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px', color: styleConfig.color }}>
+                            <polyline points="20 12 20 22 4 22 4 12"></polyline>
+                            <rect x="2" y="7" width="20" height="5"></rect>
+                            <line x1="12" y1="22" x2="12" y2="7"></line>
+                            <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path>
+                            <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path>
+                          </svg>
+                        </div>
+                        <Badge status={perkBadge}>{perkBadge}</Badge>
                       </div>
-                      <Badge status={perkBadge}>{perkBadge}</Badge>
+                      <div className="kfpl-perk-card-body" style={{ flex: 1, padding: '16px 20px' }}>
+                        <h4 className="kfpl-perk-card-title" style={{ margin: '0 0 8px 0', fontSize: '1rem', fontWeight: 700 }}>{perkName}</h4>
+                        <div className="kfpl-perk-card-desc">
+                          {renderFormattedDescription(perkDesc)}
+                        </div>
+                      </div>
                     </div>
-                    <div className="kfpl-perk-card-body" style={{ flex: 1, padding: '16px 20px' }}>
-                      <h4 className="kfpl-perk-card-title" style={{ margin: '0 0 8px 0', fontSize: '1rem', fontWeight: 700 }}>{perkName}</h4>
-                      <p className="kfpl-perk-card-desc" style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', margin: 0, lineHeight: 1.5 }}>
-                        {perkDesc}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {activeTab === 'documents' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1838,6 +1938,15 @@ export default function InvestorDetail() {
                     >
                       View Document
                     </button>
+                    {!isVerified && (
+                      <button 
+                        className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" 
+                        style={{ fontSize: '0.78rem', padding: '6px 12px', fontWeight: '700' }}
+                        onClick={() => handleVerifyDocument(docName)}
+                      >
+                        Verify
+                      </button>
+                    )}
                     <button 
                       className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" 
                       style={{ padding: '6px 10px' }}

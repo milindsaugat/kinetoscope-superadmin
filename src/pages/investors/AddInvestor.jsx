@@ -8,8 +8,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../components/ui/Toast';
 import FileDropzone from '../../components/ui/FileDropzone';
-import { investors, agents } from '../../data/mockData';
 import { getApiUrl } from '../../config/apiUrl';
+import { apiRequest } from '../../config/apiHelper';
 
 const formatAgentID = (rawId) => {
   if (!rawId || rawId === '—') return '—';
@@ -41,7 +41,7 @@ export default function AddInvestor() {
     riskProfile: 'Conservative',
     citizenship: 'National',
     nomineeCitizenship: 'National',
-    roiPercentage: '1.2',
+    roiPercentage: '0',
     contractStartDate: new Date().toISOString().split('T')[0],
     contractEndDate: '',
   });
@@ -51,20 +51,8 @@ export default function AddInvestor() {
   useEffect(() => {
     const fetchDbAgents = async () => {
       try {
-        const authData = localStorage.getItem('kfpl_auth');
-        let jwtToken = '';
-        if (authData) {
-          const parsed = JSON.parse(authData);
-          jwtToken = parsed.token || '';
-        }
-        const response = await fetch(getApiUrl('/api/super-admin/agents'), {
-          headers: {
-            'Authorization': `Bearer ${jwtToken}`
-          }
-        });
-        if (response.ok) {
-          const resData = await response.json();
-          // support different response formats from real API
+        const resData = await apiRequest('/api/super-admin/agents');
+        if (resData) {
           const extractAgents = (res) => {
             if (!res) return [];
             if (Array.isArray(res)) return res;
@@ -184,7 +172,7 @@ export default function AddInvestor() {
       if (form.address) formData.append('address', form.address);
       formData.append('riskProfile', form.riskProfile);
       formData.append('residencyStatus', form.citizenship === 'International' ? 'International' : 'National (Domestic)');
-      formData.append('monthlyRoi', form.roiPercentage || '1.2');
+      formData.append('monthlyRoi', form.roiPercentage || '0');
       if (form.contractStartDate) {
         formData.append('contractStartDate', form.contractStartDate);
         formData.append('joinDate', form.contractStartDate);

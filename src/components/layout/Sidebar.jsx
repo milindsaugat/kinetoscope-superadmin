@@ -223,6 +223,7 @@ export default function Sidebar({ isCollapsed, onToggle, isMobileOpen, onMobileC
           <div className="kfpl-sidebar-logo-text">
             <span className="kfpl-sidebar-logo-title">KINETOSCOPE</span>
             <span className="kfpl-sidebar-logo-subtitle">Super Admin Panel</span>
+            <span className="kfpl-sidebar-logo-tagline" style={{ fontSize: '9px', color: 'rgba(255, 255, 255, 0.45)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px', display: 'block' }}>Films. Finance. Future.</span>
           </div>
         </div>
 

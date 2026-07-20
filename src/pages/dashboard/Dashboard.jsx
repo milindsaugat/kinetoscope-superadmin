@@ -15,23 +15,12 @@ import PieChart from '../../components/charts/PieChart';
 import AreaChart from '../../components/charts/AreaChart';
 import Badge from '../../components/ui/Badge';
 import { apiRequest } from '../../config/apiHelper';
-import {
-  dashboardStats, monthlyROIData, segmentDistribution,
-  recentActivity, topInvestors, topAgents,
-  agentContributionData, investmentStatusData,
-  monthlyInvestmentData,
-  formatCurrency, formatNumber,
-} from '../../data/mockData';
+import { formatCurrency, formatNumber } from '../../utils/formatters';
 
 const formatClientID = (rawId) => {
   if (!rawId || rawId === '—') return '—';
   const str = String(rawId).trim();
-  if (/^[0-9a-fA-F]{24}$/.test(str)) {
-    return 'KFPL-CL-1001';
-  }
-  if (/^KFPL-CL-\d+$/i.test(str)) {
-    return str.toUpperCase();
-  }
+  if (str.toUpperCase().startsWith('KFPL-CL-')) return str.toUpperCase();
   const digitsMatch = str.match(/\d+/);
   if (digitsMatch) {
     let val = parseInt(digitsMatch[0], 10);
@@ -114,7 +103,7 @@ export default function Dashboard() {
         if (parsed.agentContribution) setAgentContribution(parsed.agentContribution);
         if (parsed.agentsRanked) setAgentsRanked(parsed.agentsRanked);
         if (parsed.roiTrend) setRoiTrend(parsed.roiTrend);
-        if (parsed.activities) setActivities(parsed.activities);
+        if (parsed.activities && Array.isArray(parsed.activities)) setActivities(parsed.activities);
         setLoading(false);
       }
     } catch (e) {
@@ -155,7 +144,7 @@ export default function Dashboard() {
               const profile = c.profile || {};
               const user = c.userId || c.user || {};
               const name = profile.fullName || user.name || c.fullName || c.name || '';
-              return name.trim() !== '' && !MOCK_NAMES.includes(name.trim());
+              return name.trim() !== '';
             });
 
             realTotalInvestorsCount = rawClients.length;
@@ -352,14 +341,18 @@ export default function Dashboard() {
           };
           setStats(freshStats);
 
-          // Recent Activity
+          // Recent Activity — 100% Dynamic from Database
           const ensureArray = (val, fallback = []) => Array.isArray(val) ? val : fallback;
-          const rawActivity = ensureArray(data.recentActivity || data.activities || data.recentActivities);
-          mappedActivities = rawActivity.map(item => ({
-            id: item.id || item._id || Math.random(),
-            text: item.text || item.message || '',
-            type: item.type || 'info',
-            time: item.time || item.createdAt || 'Just now'
+          const rawActivity = ensureArray(
+            data?.recentActivities || data?.data?.recentActivities || 
+            data?.recentActivity || data?.data?.recentActivity || 
+            data?.activities || data?.data?.activities
+          );
+          mappedActivities = rawActivity.map((item, idx) => ({
+            id: item.id || item._id || idx,
+            text: item.text || item.message || 'Platform activity recorded',
+            type: (item.type || 'info').toLowerCase(),
+            time: item.timestamp || item.time || item.createdAt || 'Just now'
           }));
           setActivities(mappedActivities);
         }
@@ -693,17 +686,23 @@ export default function Dashboard() {
           </div>
           <div className="kfpl-chart-body" style={{ maxHeight: '400px', overflowY: 'auto' }}>
             <div className="kfpl-activity-feed">
-              {activities.map(item => (
-                <div className="kfpl-activity-item" key={item.id}>
-                  <div className={`kfpl-activity-icon-wrap ${item.type}`}>
-                    {activityIcons[item.type] || activityIcons.info}
+              {activities.length > 0 ? (
+                activities.map(item => (
+                  <div className="kfpl-activity-item" key={item.id}>
+                    <div className={`kfpl-activity-icon-wrap ${item.type}`}>
+                      {activityIcons[item.type] || activityIcons.info}
+                    </div>
+                    <div className="kfpl-activity-content">
+                      <div className="kfpl-activity-text" dangerouslySetInnerHTML={{ __html: item.text }} />
+                      <div className="kfpl-activity-time">{item.time}</div>
+                    </div>
                   </div>
-                  <div className="kfpl-activity-content">
-                    <div className="kfpl-activity-text" dangerouslySetInnerHTML={{ __html: item.text }} />
-                    <div className="kfpl-activity-time">{item.time}</div>
-                  </div>
+                ))
+              ) : (
+                <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
+                  No recent platform activity logged yet.
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>

@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import Badge from '../../components/ui/Badge';
-import { agents, investors, formatCurrency } from '../../data/mockData';
+import { formatCurrency } from '../../utils/formatters';
 import { useToast } from '../../components/ui/Toast';
 import { apiRequest } from '../../config/apiHelper';
 import { getApiUrl } from '../../config/apiUrl';
@@ -531,6 +531,7 @@ export default function AgentDetail() {
       }
     };
   }, [viewingDoc]);
+
   const [loading, setLoading] = useState(true);
   const [localStatus, setLocalStatus] = useState('active');
   const [apiSlabs, setApiSlabs] = useState([]);
@@ -1852,6 +1853,15 @@ export default function AgentDetail() {
                     >
                       View Document
                     </button>
+                    {!isVerified && (
+                      <button 
+                        className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" 
+                        style={{ fontSize: '0.78rem', padding: '6px 12px', fontWeight: '700' }}
+                        onClick={() => handleVerifyDocument(docName)}
+                      >
+                        Verify
+                      </button>
+                    )}
                     <button 
                       className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" 
                       style={{ padding: '6px 10px' }}

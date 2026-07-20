@@ -239,13 +239,13 @@
 .kfpl-badge--active,
 .kfpl-badge--approved,
 .kfpl-badge--paid {
-  background: var(--color-success-bg);
-  color: var(--color-success);
+  background: #D1FAE5;
+  color: #065F46;
 }
 
 .kfpl-badge--pending {
-  background: var(--color-warning-bg);
-  color: var(--color-warning);
+  background: #FEF3C7;
+  color: #92400E;
   animation: pulseGold 2s ease-in-out infinite;
 }
 
@@ -256,8 +256,8 @@
 }
 
 .kfpl-badge--rejected {
-  background: var(--color-danger-bg);
-  color: var(--color-danger);
+  background: #FEE2E2;
+  color: #991B1B;
 }
 
 .kfpl-badge--silver {
@@ -266,8 +266,8 @@
 }
 
 .kfpl-badge--gold {
-  background: linear-gradient(135deg, var(--color-gold-light), var(--color-gold));
-  color: var(--color-navy);
+  background: linear-gradient(135deg, #FEF3C7, #F59E0B);
+  color: #92400E;
 }
 
 .kfpl-badge--platinum {
@@ -278,6 +278,21 @@
 .kfpl-badge--diamond {
   background: linear-gradient(135deg, #E0F7FA, #80DEEA);
   color: #00695C;
+}
+
+.kfpl-badge--conservative {
+  background: rgba(16, 185, 129, 0.1);
+  color: #065F46;
+}
+
+.kfpl-badge--moderate {
+  background: rgba(245, 158, 11, 0.1);
+  color: #92400E;
+}
+
+.kfpl-badge--aggressive {
+  background: rgba(239, 68, 68, 0.1);
+  color: #991B1B;
 }
 
 /* ── Buttons ─────────────────────── */

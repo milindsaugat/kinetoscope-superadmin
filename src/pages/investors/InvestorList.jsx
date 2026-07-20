@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import DataTable from '../../components/ui/DataTable';
 import Badge from '../../components/ui/Badge';
-import { formatCurrency, getCategoryFromAmount, investors } from '../../data/mockData';
+import { formatCurrency, getCategoryFromAmount } from '../../utils/formatters';
 import { apiRequest } from '../../config/apiHelper';
 import { useToast } from '../../components/ui/Toast';
 
@@ -20,14 +20,13 @@ export default function InvestorList() {
   const [tierFilter, setTierFilter] = useState('all');
 
   const formatClientID = (rawId) => {
-    if (!rawId || rawId === '—') return '—';
-    if (rawId.startsWith('KFPL-CL-')) return rawId;
-    const digits = rawId.match(/\d+/);
+    if (!rawId || rawId === '—') return 'KFPL-CL-1001';
+    const str = String(rawId).trim();
+    if (str.toUpperCase().startsWith('KFPL-CL-')) return str.toUpperCase();
+    const digits = str.match(/\d+/);
     if (digits) {
       let val = parseInt(digits[0], 10);
-      if (val < 1000) {
-        val = 1000 + val;
-      }
+      if (val < 1000) val += 1000;
       return `KFPL-CL-${val}`;
     }
     return 'KFPL-CL-1001';
@@ -50,30 +49,57 @@ export default function InvestorList() {
 
   const confirmDeleteClient = async () => {
     if (!deleteClientId) return;
+
+    // Optimistic UI — remove immediately from local state
+    const previousClients = clients;
+    setClients(prev => prev.filter(c => (c._id || c.id) !== deleteClientId));
+    // Also update localStorage cache immediately
+    try {
+      const updated = previousClients.filter(c => (c._id || c.id) !== deleteClientId);
+      localStorage.setItem('kfpl_super_admin_clients_cache', JSON.stringify(updated));
+    } catch (_) {}
+
+    setShowDeleteModal(false);
+    setDeleteClientId(null);
+
     try {
       await apiRequest(`/api/super-admin/clients/${deleteClientId}`, {
         method: 'DELETE'
       });
       addToast('Client deleted successfully.', 'success', 'Deleted');
-      setShowDeleteModal(false);
-      setDeleteClientId(null);
-      setRenderTrigger(prev => prev + 1);
     } catch (err) {
+      // Rollback on failure
       console.error('Failed to delete client:', err);
+      setClients(previousClients);
+      try {
+        localStorage.setItem('kfpl_super_admin_clients_cache', JSON.stringify(previousClients));
+      } catch (_) {}
       addToast(err.message || 'Failed to delete client.', 'error', 'Error');
     }
   };
 
   const handleClearAllClients = async () => {
+    // Optimistic UI — clear list instantly
+    const previousClients = clients;
+    setClients([]);
+    try {
+      localStorage.setItem('kfpl_super_admin_clients_cache', JSON.stringify([]));
+    } catch (_) {}
+
+    setShowClearAllModal(false);
+
     try {
       await apiRequest('/api/super-admin/clients/clear', {
         method: 'DELETE'
       });
       addToast('All client profiles cleared successfully.', 'success', 'Data Cleared');
-      setShowClearAllModal(false);
-      setRenderTrigger(prev => prev + 1);
     } catch (err) {
+      // Rollback on failure
       console.error('Failed to clear clients:', err);
+      setClients(previousClients);
+      try {
+        localStorage.setItem('kfpl_super_admin_clients_cache', JSON.stringify(previousClients));
+      } catch (_) {}
       addToast(err.message || 'Failed to clear clients.', 'error', 'Error');
     }
   };
@@ -83,8 +109,12 @@ export default function InvestorList() {
     try {
       const cacheData = localStorage.getItem('kfpl_super_admin_clients_cache');
       if (cacheData) {
-        setClients(JSON.parse(cacheData));
-        setLoading(false);
+        const parsed = JSON.parse(cacheData);
+        const hasValidData = Array.isArray(parsed) && parsed.some(c => Number(c.totalInvestment) > 0);
+        if (hasValidData) {
+          setClients(parsed);
+          setLoading(false);
+        }
       }
     } catch (e) {
       console.warn('Failed to parse clients cache:', e);
@@ -110,19 +140,19 @@ export default function InvestorList() {
           
           const cleanRawList = list.filter(c => {
             if (!c || typeof c !== 'object') return false;
-            const profile = c.profile || {};
-            const user = c.userId || c.user || {};
-            const name = profile.fullName || user.name || c.fullName || c.name || '';
+            const profile = (c.profile && typeof c.profile === 'object') ? c.profile : {};
+            const user = (c.user && typeof c.user === 'object') ? c.user : ((c.userId && typeof c.userId === 'object') ? c.userId : {});
+            const name = profile.fullName || user.name || user.fullName || c.fullName || c.name || c.header?.clientName || '';
             return name.trim() !== '' && !MOCK_NAMES.includes(name.trim());
           });
 
 
           const normalized = cleanRawList.map((c, index) => {
-            const profile = c.profile || {};
+            const profile = (c.profile && typeof c.profile === 'object') ? c.profile : {};
             const header = c.header || {};
             const summary = c.summaryCards || {};
-            const user = (c.userId && typeof c.userId === 'object' ? c.userId : null) || 
-                         (c.user && typeof c.user === 'object' ? c.user : null) || 
+            const user = (c.user && typeof c.user === 'object' ? c.user : null) ||
+                         (c.userId && typeof c.userId === 'object' ? c.userId : null) || 
                          (profile.userId && typeof profile.userId === 'object' ? profile.userId : null) ||
                          (profile.user && typeof profile.user === 'object' ? profile.user : null) || {};
             
@@ -159,6 +189,9 @@ export default function InvestorList() {
               }
             }
 
+            const rawRoi = c.monthlyRoi ?? c.roi ?? summary.monthlyRoi ?? profile.monthlyRoi ?? c.roiPercentage ?? 0;
+            const actualRoi = Number(rawRoi) || 0;
+
             return {
               _id: userId,
               clientCode: formatClientID(user.clientCode || c.clientCode || header.clientCode || profile.clientCode || c.clientId || profile.clientId || fallbackCode),
@@ -170,9 +203,10 @@ export default function InvestorList() {
               contractStartDate: c.contractStartDate || profile.contractStartDate || c.joinDate || profile.joinDate || '',
               contractEndDate: c.contractEndDate || profile.contractEndDate || '',
               extendContractDate: c.extendContractDate || profile.extendContractDate || c.contractExtendedDate || profile.contractExtendedDate || '',
-              totalInvestment: c.totalInvestment || summary.totalInvestment || profile.totalPortfolioValue || 0,
-              monthlyRoi: c.monthlyRoi || summary.monthlyRoi || profile.monthlyRoi || c.roiPercentage || profile.roiPercentage || 1.2,
-              tier: c.tier || header.tier || profile.tier || c.category || profile.category || 'silver',
+              totalInvestment: Number(c.totalInvestment || summary.totalInvestment || profile.totalPortfolioValue || 0),
+              monthlyRoi: actualRoi,
+              roi: actualRoi,
+              tier: (c.tier || header.tier || profile.tier || c.category || profile.category || 'silver').toLowerCase(),
               status: c.status || header.status || profile.status || 'active',
               assignedAgent: agentIdVal,
               assignedAgentName: agentNameVal,
@@ -268,7 +302,7 @@ export default function InvestorList() {
     },
     {
       header: 'Monthly ROI % Allocated',
-      render: (row) => `${row.monthlyRoi || 1.2}%`,
+      render: (row) => `${row.monthlyRoi ?? 0}%`,
     },
     {
       header: 'Perks',

@@ -4,7 +4,7 @@
    ============================================================ */
 
 import { useState } from 'react';
-import { formatCurrency } from '../../data/mockData';
+import { formatCurrency } from '../../utils/formatters';
 
 export default function AreaChart({ data, height = 260 }) {
   if (!data || data.length === 0) {

@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
-import { investors, agents, formatCurrency } from '../../data/mockData';
+import { formatCurrency } from '../../utils/formatters';
 import { useToast } from '../../components/ui/Toast';
 import { apiRequest } from '../../config/apiHelper';
 
@@ -504,7 +504,7 @@ export default function ROIList() {
     });
     if (client) {
       const totalInv = client.totalInvestment || (client.profile && client.profile.totalPortfolioValue) || 0;
-      const roiPct = client.monthlyRoi || (client.profile && client.profile.monthlyRoi) || client.roiPercentage || (client.profile && client.profile.roiPercentage) || 1.2;
+      const roiPct = client.monthlyRoi ?? (client.profile && client.profile.monthlyRoi) ?? client.roiPercentage ?? (client.profile && client.profile.roiPercentage) ?? 0;
       const monthlyReturn = Math.round((totalInv * roiPct) / 100);
       setAmountPaid(monthlyReturn);
     } else {
@@ -634,7 +634,7 @@ export default function ROIList() {
           ? (relatedClientObj?.profile?._id || relatedClientObj?._id || relatedClientId)
           : undefined),
       roiPercentage: recipientType === 'client'
-        ? (selectedClientObj?.monthlyRoi || selectedClientObj?.summaryCards?.monthlyRoi || selectedClientObj?.profile?.monthlyRoi || selectedClientObj?.profile?.roiPercentage || selectedClientObj?.roiPercentage || 1.2)
+        ? (selectedClientObj?.monthlyRoi ?? selectedClientObj?.summaryCards?.monthlyRoi ?? selectedClientObj?.profile?.monthlyRoi ?? selectedClientObj?.profile?.roiPercentage ?? selectedClientObj?.roiPercentage ?? 0)
         : undefined,
       amount: amt,
       payoutDate: payoutDate,
@@ -698,8 +698,8 @@ export default function ROIList() {
       );
 
       const resolvedRoi = match
-        ? (match.monthlyRoi || match.summaryCards?.monthlyRoi || match.profile?.monthlyRoi || match.profile?.roiPercentage || match.roiPercentage || 1.2)
-        : (r.roiPercentage || 1.2);
+        ? (match.monthlyRoi ?? match.summaryCards?.monthlyRoi ?? match.profile?.monthlyRoi ?? match.profile?.roiPercentage ?? match.roiPercentage ?? 0)
+        : (r.roiPercentage ?? 0);
 
       return {
         ...r,
@@ -974,7 +974,7 @@ export default function ROIList() {
                   });
                   if (!client) return null;
                   const totalInv = client.totalInvestment || (client.summaryCards && client.summaryCards.totalInvestment) || (client.profile && client.profile.totalPortfolioValue) || 0;
-                  const roiPct = client.monthlyRoi || (client.profile && client.profile.monthlyRoi) || client.roiPercentage || (client.profile && client.profile.roiPercentage) || 1.2;
+                  const roiPct = client.monthlyRoi ?? (client.profile && client.profile.monthlyRoi) ?? client.roiPercentage ?? (client.profile && client.profile.roiPercentage) ?? 0;
                   return (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: 'var(--color-surface)', padding: '12px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
                       <div>
@@ -1095,7 +1095,7 @@ export default function ROIList() {
                           });
                           if (client) {
                             const totalInv = client.totalInvestment || (client.profile && client.profile.totalPortfolioValue) || 0;
-                            const roiPct = client.monthlyRoi || (client.profile && client.profile.monthlyRoi) || client.roiPercentage || (client.profile && client.profile.roiPercentage) || 1.2;
+                            const roiPct = client.monthlyRoi ?? (client.profile && client.profile.monthlyRoi) ?? client.roiPercentage ?? (client.profile && client.profile.roiPercentage) ?? 0;
                             const monthlyReturn = Math.round((totalInv * roiPct) / 100);
                             setAmountPaid(monthlyReturn);
                           }

@@ -9,7 +9,8 @@ import { createPortal } from 'react-dom';
 import Modal from '../../components/ui/Modal';
 import Badge from '../../components/ui/Badge';
 import DataTable from '../../components/ui/DataTable';
-import { INVESTMENT_SEGMENTS, formatCurrency } from '../../data/mockData';
+import { INVESTMENT_SEGMENTS } from '../../data/mockData';
+import { formatCurrency } from '../../utils/formatters';
 import { useToast } from '../../components/ui/Toast';
 import { apiRequest } from '../../config/apiHelper';
 

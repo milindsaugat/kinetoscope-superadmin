@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
-import { approvals, formatCurrency, investors, approvalHistory, getCategoryFromAmount } from '../../data/mockData';
+import { formatCurrency, getCategoryFromAmount } from '../../utils/formatters';
 import { useToast } from '../../components/ui/Toast';
 import { apiRequest } from '../../config/apiHelper';
 
@@ -94,6 +94,7 @@ export default function ApprovalsQueue() {
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [scanningItemId, setScanningItemId] = useState(null);
   const [verifiedItems, setVerifiedItems] = useState({});
+  const [investors, setInvestors] = useState([]);
 
   const handleVerifyAttachment = (itemId) => {
     setScanningItemId(itemId);
@@ -116,7 +117,13 @@ export default function ApprovalsQueue() {
   const fetchApprovals = async () => {
     try {
       setLoading(true);
-      const resDeposits = await apiRequest('/api/super-admin/transactions/approvals?type=deposit');
+
+      // Concurrent parallel API calls instead of sequential awaits
+      const [resDeposits, resWithdrawals] = await Promise.all([
+        apiRequest('/api/super-admin/transactions/approvals?type=deposit').catch(() => ({ queue: [] })),
+        apiRequest('/api/super-admin/transactions/approvals?type=withdrawal').catch(() => ({ queue: [] }))
+      ]);
+
       const dataDep = resDeposits.data || resDeposits;
       let depQueue = [];
       if (Array.isArray(dataDep)) {
@@ -127,7 +134,6 @@ export default function ApprovalsQueue() {
         depQueue = dataDep.transactions;
       }
 
-      const resWithdrawals = await apiRequest('/api/super-admin/transactions/approvals?type=withdrawal');
       const dataWith = resWithdrawals.data || resWithdrawals;
       let withQueue = [];
       if (Array.isArray(dataWith)) {
@@ -173,16 +179,37 @@ export default function ApprovalsQueue() {
       const pendingDepVal = depositsMapped.filter(i => i.status === 'pending').reduce((sum, item) => sum + item.amount, 0);
       const pendingWithVal = withdrawalsMapped.filter(i => i.status === 'pending').reduce((sum, item) => sum + item.amount, 0);
 
-      setStats({
+      const updatedStats = {
         totalPending: pendingDep + pendingWith,
         pendingDeposits: pendingDep,
         pendingDepositsVal: pendingDepVal,
         pendingWithdrawals: pendingWith,
         pendingWithdrawalsVal: pendingWithVal
-      });
+      };
+
+      setStats(updatedStats);
+
+      // Save to SWR cache
+      localStorage.setItem('kfpl_super_admin_approvals_cache', JSON.stringify({
+        depositsList: depositsMapped,
+        withdrawalsList: withdrawalsMapped,
+        stats: updatedStats
+      }));
 
     } catch (err) {
       console.error('Failed to fetch approvals:', err);
+      // Rollback to SWR cache
+      try {
+        const cache = localStorage.getItem('kfpl_super_admin_approvals_cache');
+        if (cache) {
+          const parsed = JSON.parse(cache);
+          if (parsed.depositsList) setDepositsList(parsed.depositsList);
+          if (parsed.withdrawalsList) setWithdrawalsList(parsed.withdrawalsList);
+          if (parsed.stats) setStats(parsed.stats);
+          return;
+        }
+      } catch (_) {}
+
       setDepositsList([]);
       setWithdrawalsList([]);
       setStats({
@@ -198,7 +225,40 @@ export default function ApprovalsQueue() {
   };
 
   useEffect(() => {
+    // --- SWR Cache Initialization for Instant Load (0ms) ---
+    try {
+      const cache = localStorage.getItem('kfpl_super_admin_approvals_cache');
+      if (cache) {
+        const parsed = JSON.parse(cache);
+        if (parsed.depositsList) setDepositsList(parsed.depositsList);
+        if (parsed.withdrawalsList) setWithdrawalsList(parsed.withdrawalsList);
+        if (parsed.stats) setStats(parsed.stats);
+        setLoading(false); // bypass loading screen
+      }
+    } catch (_) {}
+
     fetchApprovals();
+
+    const fetchInvestors = async () => {
+      try {
+        const cache = localStorage.getItem('kfpl_super_admin_clients_cache');
+        if (cache) {
+          setInvestors(JSON.parse(cache));
+        }
+      } catch (_) {}
+
+      try {
+        const res = await apiRequest('/api/super-admin/clients');
+        const list = res.data?.clients || res.data || res.clients || [];
+        if (Array.isArray(list)) {
+          setInvestors(list);
+          localStorage.setItem('kfpl_super_admin_clients_cache', JSON.stringify(list));
+        }
+      } catch (err) {
+        console.error('Failed to fetch investors list for approvals queue:', err);
+      }
+    };
+    fetchInvestors();
   }, []);
 
   const currentItems = activeTab === 'deposits' ? depositsList : withdrawalsList;
@@ -244,6 +304,13 @@ export default function ApprovalsQueue() {
       });
 
       addToast(`${item.type === 'deposit' ? 'Deposit' : 'Withdrawal'} of ${formatCurrency(item.amount)} approved.`, 'success', 'Request Approved');
+      
+      // Broadcast approval event for instant cross-tab / cross-portal synchronization
+      try {
+        localStorage.setItem('kfpl_approval_event', Date.now().toString());
+        window.dispatchEvent(new Event('kfpl_approval_event'));
+      } catch (e) {}
+
       setModal({ open: false, type: '', item: null });
       setAdminNote('');
       fetchApprovals();
@@ -358,8 +425,8 @@ export default function ApprovalsQueue() {
       ) : (
         <div className="kfpl-approvals-list">
           {currentItems.map(item => {
-            const investorObj = investors.find(i => i.clientId === item.clientId) || {};
-            const tier = investorObj.category || 'silver';
+            const investorObj = (investors || []).find(i => i.clientId === item.clientId || i.clientCode === item.clientId || i._id === item.clientId) || {};
+            const tier = investorObj.category || investorObj.tier || 'silver';
             const initials = item.investorName ? item.investorName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'IN';
             
             return (

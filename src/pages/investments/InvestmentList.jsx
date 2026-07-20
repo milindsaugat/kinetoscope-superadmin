@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import DataTable from '../../components/ui/DataTable';
 import Badge from '../../components/ui/Badge';
-import { investors, formatCurrency } from '../../data/mockData';
+import { formatCurrency } from '../../utils/formatters';
 import { apiRequest } from '../../config/apiHelper';
 import { useToast } from '../../components/ui/Toast';
 

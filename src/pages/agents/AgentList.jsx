@@ -5,17 +5,80 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import DataTable from '../../components/ui/DataTable';
 import Badge from '../../components/ui/Badge';
-import { formatCurrency, agents } from '../../data/mockData';
+import { formatCurrency, formatAgentID } from '../../utils/formatters';
 import { apiRequest } from '../../config/apiHelper';
+import { useToast } from '../../components/ui/Toast';
 
 export default function AgentList() {
   const navigate = useNavigate();
+  const { addToast } = useToast();
   const [residencyFilter, setResidencyFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [agentsList, setAgentsList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteAgentId, setDeleteAgentId] = useState(null);
+  const [showClearAllModal, setShowClearAllModal] = useState(false);
+
+  const handleDeleteAgentClick = (id) => {
+    setDeleteAgentId(id);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteAgent = async () => {
+    if (!deleteAgentId) return;
+
+    const previousAgents = agentsList;
+    setAgentsList(prev => prev.filter(a => (a.id || a._id) !== deleteAgentId));
+    try {
+      const updated = previousAgents.filter(a => (a.id || a._id) !== deleteAgentId);
+      localStorage.setItem('kfpl_super_admin_agents_cache', JSON.stringify(updated));
+    } catch (_) {}
+
+    setShowDeleteModal(false);
+    setDeleteAgentId(null);
+
+    try {
+      await apiRequest(`/api/super-admin/agents/${deleteAgentId}`, {
+        method: 'DELETE'
+      });
+      addToast('Agent deleted successfully.', 'success', 'Deleted');
+    } catch (err) {
+      console.error('Failed to delete agent:', err);
+      setAgentsList(previousAgents);
+      try {
+        localStorage.setItem('kfpl_super_admin_agents_cache', JSON.stringify(previousAgents));
+      } catch (_) {}
+      addToast(err.message || 'Failed to delete agent.', 'error', 'Error');
+    }
+  };
+
+  const handleClearAllAgents = async () => {
+    const previousAgents = agentsList;
+    setAgentsList([]);
+    try {
+      localStorage.setItem('kfpl_super_admin_agents_cache', JSON.stringify([]));
+    } catch (_) {}
+
+    setShowClearAllModal(false);
+
+    try {
+      await apiRequest('/api/super-admin/agents/clear', {
+        method: 'DELETE'
+      });
+      addToast('All agent profiles cleared successfully.', 'success', 'Data Cleared');
+    } catch (err) {
+      console.error('Failed to clear agents:', err);
+      setAgentsList(previousAgents);
+      try {
+        localStorage.setItem('kfpl_super_admin_agents_cache', JSON.stringify(previousAgents));
+      } catch (_) {}
+      addToast(err.message || 'Failed to clear agents.', 'error', 'Error');
+    }
+  };
 
   const formatAgentID = (rawId) => {
     if (!rawId || rawId === '—') return '—';
@@ -173,6 +236,25 @@ export default function AgentList() {
       accessor: 'status',
       render: (row) => <Badge status={row.status}>{row.status}</Badge>,
     },
+    {
+      header: 'Actions',
+      render: (row) => (
+        <button
+          className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
+          style={{ padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-danger)' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDeleteAgentClick(row.id || row._id);
+          }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" width="12" height="12">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          Delete
+        </button>
+      )
+    }
   ];
 
   return (
@@ -207,11 +289,22 @@ export default function AgentList() {
             <option value="inactive">Inactive</option>
           </select>
 
-          <button className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" onClick={() => navigate('/agents/add')}>
+          <button className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" onClick={() => navigate('/agents/add')} style={{ marginRight: '8px' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
             Add Agent
+          </button>
+          <button
+            className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
+            onClick={() => setShowClearAllModal(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            Clear All Agents
           </button>
         </div>
       </div>
@@ -223,12 +316,126 @@ export default function AgentList() {
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       ) : (
-        <DataTable
-          columns={columns}
-          data={filteredAgents}
-          onRowClick={(row) => navigate(`/agents/${row.id}`)}
-          searchPlaceholder="Search agents by name, ID..."
-        />
+        <>
+          <DataTable
+            columns={columns}
+            data={filteredAgents}
+            onRowClick={(row) => navigate(`/agents/${row.id}`)}
+            searchPlaceholder="Search agents by name, ID..."
+          />
+          {showDeleteModal && createPortal(
+            <div
+              className="kfpl-modal-overlay"
+              onClick={() => {
+                setShowDeleteModal(false);
+                setDeleteAgentId(null);
+              }}
+            >
+              <div
+                className="kfpl-modal"
+                style={{ maxWidth: '440px' }}
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="kfpl-modal-header">
+                  <h3 className="kfpl-modal-title">Delete Agent</h3>
+                  <button className="kfpl-modal-close" onClick={() => {
+                    setShowDeleteModal(false);
+                    setDeleteAgentId(null);
+                  }} aria-label="Close modal">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <div className="kfpl-modal-body" style={{ padding: '20px 24px' }}>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'start', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px 16px', borderRadius: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', flexShrink: 0 }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#EF4444' }}>Danger: Permanent Deletion</h4>
+                      <p style={{ margin: '2px 0 0', fontSize: '0.8125rem', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
+                        Are you sure you want to delete this agent? This action will permanently remove the agent profile, documents, and unset agent associations for all their clients. This cannot be undone.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="kfpl-modal-footer">
+                  <button
+                    className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm"
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      setDeleteAgentId(null);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
+                    onClick={confirmDeleteAgent}
+                  >
+                    Yes, Delete
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
+
+          {showClearAllModal && createPortal(
+            <div
+              className="kfpl-modal-overlay"
+              onClick={() => setShowClearAllModal(false)}
+            >
+              <div
+                className="kfpl-modal"
+                style={{ maxWidth: '440px' }}
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="kfpl-modal-header">
+                  <h3 className="kfpl-modal-title">Clear All Agents</h3>
+                  <button className="kfpl-modal-close" onClick={() => setShowClearAllModal(false)} aria-label="Close modal">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <div className="kfpl-modal-body" style={{ padding: '20px 24px' }}>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'start', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px 16px', borderRadius: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', flexShrink: 0 }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#EF4444' }}>Danger: Clear All Records</h4>
+                      <p style={{ margin: '2px 0 0', fontSize: '0.8125rem', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
+                        Are you sure you want to clear all agents? This will permanently remove all agent profiles, documents, and reset all clients to direct (no agent) clients. This cannot be undone.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="kfpl-modal-footer">
+                  <button
+                    className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm"
+                    onClick={() => setShowClearAllModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
+                    onClick={handleClearAllAgents}
+                  >
+                    Yes, Clear All
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
+        </>
       )}
     </div>
   );

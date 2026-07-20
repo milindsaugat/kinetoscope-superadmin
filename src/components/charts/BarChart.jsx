@@ -4,7 +4,7 @@
    ============================================================ */
 
 import { useState } from 'react';
-import { formatCurrency } from '../../data/mockData';
+import { formatCurrency } from '../../utils/formatters';
 
 export default function BarChart({ data, height = 280 }) {
   if (!data || data.length === 0) {

@@ -98,8 +98,30 @@ export default function Header({ isCollapsed, onMenuClick }) {
       const clientsData = await apiRequest('/api/super-admin/clients').catch(() => []);
       const agentsData = await apiRequest('/api/super-admin/agents').catch(() => []);
       
-      const clients = Array.isArray(clientsData) ? clientsData : (clientsData.clients || clientsData.data || []);
-      const agents = Array.isArray(agentsData) ? agentsData : (agentsData.agents || agentsData.data || []);
+      const extractClients = (res) => {
+        if (!res) return [];
+        if (Array.isArray(res)) return res;
+        if (res.data) {
+          if (Array.isArray(res.data)) return res.data;
+          if (res.data.clients && Array.isArray(res.data.clients)) return res.data.clients;
+        }
+        if (res.clients && Array.isArray(res.clients)) return res.clients;
+        return [];
+      };
+
+      const extractAgents = (res) => {
+        if (!res) return [];
+        if (Array.isArray(res)) return res;
+        if (res.data) {
+          if (Array.isArray(res.data)) return res.data;
+          if (res.data.agents && Array.isArray(res.data.agents)) return res.data.agents;
+        }
+        if (res.agents && Array.isArray(res.agents)) return res.agents;
+        return [];
+      };
+
+      const clients = extractClients(clientsData);
+      const agents = extractAgents(agentsData);
 
       setClientsList(clients);
       setAgentsList(agents);

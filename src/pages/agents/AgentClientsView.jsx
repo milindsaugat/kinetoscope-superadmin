@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import DataTable from '../../components/ui/DataTable';
 import Badge from '../../components/ui/Badge';
-import { formatCurrency, getCategoryFromAmount } from '../../data/mockData';
+import { formatCurrency, getCategoryFromAmount } from '../../utils/formatters';
 import { apiRequest } from '../../config/apiHelper';
 
 export default function AgentClientsView() {

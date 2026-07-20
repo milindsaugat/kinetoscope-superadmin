@@ -1423,16 +1423,20 @@
 
 .kfpl-perk-card {
   background: var(--color-white);
-  border-radius: var(--radius-lg);
+  border-radius: 14px;
   border: 1px solid var(--color-border-light);
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
   overflow: hidden;
-  transition: var(--transition-smooth);
+  transition: all 0.25s ease;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
 }
 
 .kfpl-perk-card:hover {
-  box-shadow: var(--shadow-card-hover);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   transform: translateY(-3px);
 }
 
@@ -3645,6 +3649,73 @@
 .kfpl-nm-quill-editor-wrapper:focus-within .ql-container.ql-snow {
   border-color: var(--color-gold);
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+/* ── Glassmorphism Header Badge Styles (Smooth & Fresh) ── */
+.kfpl-detail-meta .kfpl-badge {
+  font-weight: 700 !important;
+  font-size: 10px !important;
+  padding: 4px 12px !important;
+  border-radius: var(--radius-full, 9999px) !important;
+  text-transform: uppercase !important;
+  backdrop-filter: blur(4px) !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08) !important;
+  letter-spacing: 0.8px !important;
+}
+
+.kfpl-detail-meta .kfpl-badge--silver {
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: #E2E8F0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+}
+
+.kfpl-detail-meta .kfpl-badge--gold {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #FBBF24 !important;
+  border: 1px solid rgba(245, 158, 11, 0.4) !important;
+}
+
+.kfpl-detail-meta .kfpl-badge--platinum {
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+.kfpl-detail-meta .kfpl-badge--diamond {
+  background: rgba(6, 182, 212, 0.2) !important;
+  color: #22D3EE !important;
+  border: 1px solid rgba(6, 182, 212, 0.4) !important;
+}
+
+.kfpl-detail-meta .kfpl-badge--active {
+  background: rgba(16, 185, 129, 0.25) !important;
+  color: #34D399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.45) !important;
+}
+
+.kfpl-detail-meta .kfpl-badge--inactive,
+.kfpl-detail-meta .kfpl-badge--suspended {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+.kfpl-detail-meta .kfpl-badge--conservative {
+  background: rgba(16, 185, 129, 0.25) !important;
+  color: #34D399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.45) !important;
+}
+
+.kfpl-detail-meta .kfpl-badge--moderate {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #FBBF24 !important;
+  border: 1px solid rgba(245, 158, 11, 0.4) !important;
+}
+
+.kfpl-detail-meta .kfpl-badge--aggressive {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #FCA5A5 !important;
+  border: 1px solid rgba(239, 68, 68, 0.4) !important;
 }
 
 /* ============ END: pages.css ============ */

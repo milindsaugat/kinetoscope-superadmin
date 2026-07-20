@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
-import { formatCurrency } from '../../data/mockData';
+import { formatCurrency } from '../../utils/formatters';
 import { useToast } from '../../components/ui/Toast';
 import { apiRequest } from '../../config/apiHelper';
 
@@ -67,6 +67,52 @@ const icons = {
   check: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>,
   x: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
   revoke: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>,
+};
+
+/* Description Formatter for Multi-line / Bullet Point Texts */
+const renderFormattedDescription = (desc) => {
+  if (!desc) return null;
+  const lines = desc.split('\n').map(l => l.trim()).filter(Boolean);
+
+  if (lines.length === 1 && !lines[0].endsWith(':') && !lines[0].includes('•')) {
+    return (
+      <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', display: 'block', marginTop: '3px', lineHeight: 1.4 }}>
+        {desc}
+      </span>
+    );
+  }
+
+  return (
+    <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginTop: '4px', lineHeight: 1.5 }}>
+      {lines.map((line, idx) => {
+        const isHeader = line.endsWith(':') || line.toLowerCase().includes('points:') || line.toLowerCase().includes('includes:');
+        if (isHeader) {
+          return (
+            <div key={idx} style={{ fontWeight: 700, color: 'var(--color-navy)', marginTop: idx > 0 ? '8px' : '3px', marginBottom: '4px', fontSize: '0.825rem' }}>
+              {line}
+            </div>
+          );
+        }
+
+        const isFirstIntro = idx === 0 && !line.startsWith('•') && !line.startsWith('-') && !line.startsWith('*') && !/^\d+\./.test(line);
+        if (isFirstIntro) {
+          return (
+            <div key={idx} style={{ color: 'var(--color-text-muted)', fontSize: '0.8125rem', marginBottom: '6px', lineHeight: 1.4 }}>
+              {line}
+            </div>
+          );
+        }
+
+        const cleanText = line.replace(/^[•\-\*\d+\.]+\s*/, '');
+        return (
+          <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginTop: '3px', paddingLeft: '4px' }}>
+            <span style={{ color: '#10B981', fontWeight: 'bold', fontSize: '0.8rem', lineHeight: '1.3' }}>✓</span>
+            <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.8rem', lineHeight: 1.35 }}>{cleanText}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
 };
 
 export default function PerkManagement() {
@@ -459,7 +505,8 @@ export default function PerkManagement() {
           {/* Perks Grid — Premium Cards */}
           <div className="kfpl-perks-grid">
             {perksList.map(perk => {
-              const tier = tierConfig[perk.tier] || tierConfig.silver;
+              const tierKey = (perk.tier || 'silver').toLowerCase();
+              const tier = tierConfig[tierKey] || tierConfig.silver;
               return (
                 <div className="kfpl-perk-card" key={perk.id} style={{ '--tier-bg': tier.bg }}>
                   {/* Tier stripe */}
@@ -482,18 +529,17 @@ export default function PerkManagement() {
                       </div>
                     </div>
                   </div>
-
                   {/* Body */}
                   <div className="kfpl-perk-card-body">
                     <h4 className="kfpl-perk-card-title">{perk.name}</h4>
-                    <p className="kfpl-perk-card-desc">{perk.description}</p>
+                    <div className="kfpl-perk-card-desc">{renderFormattedDescription(perk.description)}</div>
                   </div>
 
                   {/* Footer */}
                   <div className="kfpl-perk-card-footer">
                     <div className="kfpl-perk-tier-badge">
                       <span className="kfpl-perk-tier-icon">{renderTierIcon(tier, 14)}</span>
-                      <Badge status={perk.tier}>{perk.tier} tier</Badge>
+                      <Badge status={tierKey}>{perk.tier} tier</Badge>
                     </div>
                     <div className="kfpl-perk-min">
                       <span className="kfpl-perk-min-label">Min Investment</span>
