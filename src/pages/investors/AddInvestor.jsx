@@ -229,56 +229,6 @@ export default function AddInvestor() {
       if (response.ok) {
         addToast(`Client "${form.fullName}" registered successfully!`, 'success', 'Client Added');
         
-        const newId = investors.length > 0 ? Math.max(...investors.map(i => i.id)) + 1 : 1;
-        const rawClientId = resData.data?.header?.clientCode || `KFPL-CL-${1000 + newId}`;
-        let clientId = rawClientId;
-        if (rawClientId) {
-          const str = String(rawClientId).trim();
-          if (/^KFPL-CL-\d+$/i.test(str)) {
-            clientId = str.toUpperCase();
-          } else {
-            const digitsMatch = str.match(/\d+/);
-            if (digitsMatch) {
-              let val = parseInt(digitsMatch[0], 10);
-              if (val < 1000) val = 1000 + val;
-              clientId = `KFPL-CL-${val}`;
-            }
-          }
-        }
-        const newClient = {
-          id: newId,
-          name: form.fullName,
-          clientId: clientId,
-          email: form.email,
-          phone: form.phone,
-          dob: form.dob,
-          address: form.address,
-          category: 'silver',
-          status: 'active',
-          totalInvestment: 0,
-          roiPercentage: parseFloat(form.roiPercentage) || 1.2,
-          joinDate: form.contractStartDate || new Date().toISOString().split('T')[0],
-          contractEndDate: form.contractEndDate || '',
-          kyc: 'Verified',
-          pan: form.pan,
-          bankName: form.bankName,
-          accountNo: form.accountNo,
-          ifsc: form.ifsc,
-          riskProfile: form.riskProfile,
-          citizenship: form.citizenship,
-          investments: [],
-          roiHistory: [],
-          perks: [],
-          nominee: {
-            name: form.nomineeName,
-            relation: form.nomineeRelation,
-            contact: form.nomineeContact,
-            email: form.nomineeEmail,
-            citizenship: form.nomineeCitizenship,
-          }
-        };
-        investors.push(newClient);
-
         setTimeout(() => navigate('/investors'), 500);
       } else {
         addToast(resData.message || resData.error || 'Failed to onboard client.', 'danger', 'Submission Error');
@@ -367,24 +317,18 @@ export default function AddInvestor() {
                   style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}
                 >
                   <option value="">Direct Client (No Agent)</option>
-                  {dbAgents.length > 0 ? (
-                    dbAgents.map(a => {
-                      const user = a.user || {};
-                      const profile = a.profile || {};
-                      const agentName = profile.fullName || user.name || a.fullName || a.name || 'Agent';
-                      const rawCode = user.clientCode || profile.agentId || a.agentId || a.code || '';
-                      const formattedId = formatAgentID(rawCode);
-                      return (
-                        <option key={a._id || a.id} value={a._id || a.id}>
-                          {agentName} ({formattedId})
-                        </option>
-                      );
-                    })
-                  ) : (
-                    agents.map(a => (
-                      <option key={a.id} value={a.id}>{a.name} ({a.agentId})</option>
-                    ))
-                  )}
+                  {dbAgents.map(a => {
+                    const user = a.user || {};
+                    const profile = a.profile || {};
+                    const agentName = profile.fullName || user.name || a.fullName || a.name || 'Agent';
+                    const rawCode = user.clientCode || profile.agentId || a.agentId || a.code || '';
+                    const formattedId = formatAgentID(rawCode);
+                    return (
+                      <option key={a._id || a.id} value={a._id || a.id}>
+                        {agentName} ({formattedId})
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             </div>
