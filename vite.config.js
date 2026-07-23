@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig(async ({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const localUrl = env.VITE_API_URL_LOCAL || 'http://localhost:5000';
-  const cloudUrl = env.VITE_API_URL_CLOUD || 'https://kinetoscope-backend.vercel.app';
+  const cloudUrl = env.VITE_API_URL_CLOUD || 'https://kinetoscope-backend-tau.vercel.app';
 
   // Auto-detect which backend is available
   let target = cloudUrl;
