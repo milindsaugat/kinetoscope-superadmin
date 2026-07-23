@@ -11,6 +11,7 @@ import Badge from '../../components/ui/Badge';
 import { formatCurrency, formatAgentID } from '../../utils/formatters';
 import { apiRequest } from '../../config/apiHelper';
 import { useToast } from '../../components/ui/Toast';
+import { usePermissions } from '../../utils/usePermissions';
 
 export default function AgentList() {
   const navigate = useNavigate();
@@ -177,25 +178,47 @@ export default function AgentList() {
     return true;
   });
 
+  const { canCreate, canEdit, canDelete } = usePermissions();
+
   const columns = [
-    { header: 'Agent ID', accessor: 'agentId' },
-    { header: 'Join Date', accessor: 'joinDate' },
     {
-      header: 'Agent Name',
+      header: 'Agent',
       accessor: 'name',
-      render: (row) => <span style={{ fontWeight: 600 }}>{row.name}</span>,
+      render: (row) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%', background: 'var(--color-navy-light)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--color-gold)', fontWeight: 800, fontSize: 13, flexShrink: 0
+          }}>
+            {(row.name || 'A').charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, color: 'var(--color-navy)' }}>{row.name}</div>
+            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{row.email}</div>
+          </div>
+        </div>
+      )
     },
-    { header: 'Email Address', accessor: 'email' },
     {
-      header: 'Clients',
+      header: 'Agent ID',
+      accessor: 'agentId'
+    },
+    {
+      header: 'Phone',
+      accessor: 'phone',
+      render: (row) => row.phone || '—'
+    },
+    {
+      header: 'Total Clients',
       accessor: 'totalClients',
       render: (row) => {
-        if (row.totalClients > 0) {
+        if (row.totalClients && row.totalClients > 0) {
           return (
             <button
               onClick={(e) => {
-                e.stopPropagation(); // Prevent navigation to agent details page
-                navigate(`/agents/${row.id}/clients`, { state: { agentName: row.name, agentId: row.agentId } });
+                e.stopPropagation();
+                navigate(`/agents/${row._id || row.id}/clients`);
               }}
               style={{
                 background: 'none',
@@ -220,41 +243,45 @@ export default function AgentList() {
       render: (row) => <span className="font-semibold">{formatCurrency(row.totalInvestment)}</span>,
     },
     {
-      header: 'Commission Paid',
-      accessor: 'commissionPaidTotal',
-      render: (row) => {
-        const totalPaid = row.commissionHistory
-          ? row.commissionHistory
-              .filter(c => c.status === 'paid' && c.amount !== 16250 && c.amount !== 33750 && c.amount !== 90000 && c.amount !== 900000)
-              .reduce((sum, c) => sum + c.amount, 0)
-          : (row.commissionPaidTotal || 0);
-        return <span className="font-semibold">{formatCurrency(totalPaid)}</span>;
-      },
-    },
-    {
       header: 'Status',
       accessor: 'status',
       render: (row) => <Badge status={row.status}>{row.status}</Badge>,
     },
-    {
+    ...((canEdit('manageAgents') || canDelete('manageAgents')) ? [{
       header: 'Actions',
       render: (row) => (
-        <button
-          className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
-          style={{ padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-danger)' }}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleDeleteAgentClick(row.id || row._id);
-          }}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" width="12" height="12">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-          </svg>
-          Delete
-        </button>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          {canEdit('manageAgents') && (
+            <button
+              className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm"
+              style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/agents/${row._id || row.id}/edit`);
+              }}
+            >
+              Edit
+            </button>
+          )}
+          {canDelete('manageAgents') && (
+            <button
+              className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
+              style={{ padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-danger)' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteAgentClick(row.id || row._id);
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" width="12" height="12">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              Delete
+            </button>
+          )}
+        </div>
       )
-    }
+    }] : [])
   ];
 
   return (
@@ -289,23 +316,27 @@ export default function AgentList() {
             <option value="inactive">Inactive</option>
           </select>
 
-          <button className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" onClick={() => navigate('/agents/add')} style={{ marginRight: '8px' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            Add Agent
-          </button>
-          <button
-            className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
-            onClick={() => setShowClearAllModal(true)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-            Clear All Agents
-          </button>
+          {canCreate('manageAgents') && (
+            <button className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" onClick={() => navigate('/agents/add')} style={{ marginRight: '8px' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Add Agent
+            </button>
+          )}
+          {canDelete('manageAgents') && (
+            <button
+              className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
+              onClick={() => setShowClearAllModal(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              Clear All Agents
+            </button>
+          )}
         </div>
       </div>
 

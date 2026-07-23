@@ -9,6 +9,7 @@ import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import { formatCurrency, getCategoryFromAmount } from '../../utils/formatters';
 import { useToast } from '../../components/ui/Toast';
+import { usePermissions } from '../../utils/usePermissions';
 import { apiRequest } from '../../config/apiHelper';
 
 // Icons
@@ -86,7 +87,8 @@ const tierIcons = {
 
 export default function ApprovalsQueue() {
   const navigate = useNavigate();
-  const addToast = useToast();
+  const { addToast } = useToast();
+  const { canEdit, canDelete } = usePermissions();
   const [activeTab, setActiveTab] = useState('deposits');
   const [modal, setModal] = useState({ open: false, type: '', item: null });
   const [rejectReason, setRejectReason] = useState('');
@@ -225,6 +227,11 @@ export default function ApprovalsQueue() {
   };
 
   useEffect(() => {
+    // --- Mark approvals page as viewed & notify sidebar ---
+    localStorage.setItem('kfpl_approvals_viewed', 'true');
+    localStorage.setItem('kfpl_approvals_viewed_time', Date.now().toString());
+    window.dispatchEvent(new Event('approvalsUpdated'));
+
     // --- SWR Cache Initialization for Instant Load (0ms) ---
     try {
       const cache = localStorage.getItem('kfpl_super_admin_approvals_cache');
@@ -510,16 +517,17 @@ export default function ApprovalsQueue() {
                   </button>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div className="kfpl-modal-footer">
                 <button className="kfpl-btn kfpl-btn--ghost" onClick={() => setModal({ open: false, type: '', item: null })} disabled={actionLoading}>Cancel</button>
-                {showRejectForm ? (
-                  <button className="kfpl-btn kfpl-btn--danger" onClick={confirmReject} disabled={!rejectReason.trim() || actionLoading}>
-                    {actionLoading ? 'Rejecting...' : 'Confirm Rejection'}
-                  </button>
-                ) : (
-                  <button className="kfpl-btn kfpl-btn--success" onClick={confirmApprove} disabled={actionLoading}>
-                    {actionLoading ? 'Approving...' : 'Approve Payment'}
-                  </button>
+                {canEdit('depositWithdrawal') && (
+                  <>
+                    <button className="kfpl-btn kfpl-btn--danger" onClick={confirmReject} disabled={!rejectReason.trim() || actionLoading}>
+                      {actionLoading ? 'Rejecting...' : 'Confirm Rejection'}
+                    </button>
+                    <button className="kfpl-btn kfpl-btn--success" onClick={confirmApprove} disabled={actionLoading}>
+                      {actionLoading ? 'Approving...' : 'Approve Request'}
+                    </button>
+                  </>
                 )}
               </div>
             </div>

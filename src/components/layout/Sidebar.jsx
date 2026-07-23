@@ -1,9 +1,10 @@
 /* ============================================================
    Component: Sidebar.jsx
-   Description: Fixed left navigation with all Super Admin modules
+   Description: Fixed left navigation with all Super Admin modules.
+                Sub-admins see only the modules they have 'view' permission for.
    ============================================================ */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { getApiUrl } from '../../config/apiUrl';
 import { apiRequest } from '../../config/apiHelper';
@@ -93,6 +94,35 @@ const icons = {
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
     </svg>
   ),
+  subAdmins: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    </svg>
+  ),
+};
+
+// ── Sidebar Path → Permission Key Mapping ───────────────────────
+// null = always visible, string = requires that permission key's view=true
+const PATH_PERMISSION_MAP = {
+  '/dashboard':                null,              // Always visible
+  '/investors':                'manageClients',
+  '/agents':                   'manageAgents',
+  '/portals/client':           'manageClients',
+  '/portals/agent':            'manageAgents',
+  '/investments':              'manageInvestments',
+  '/roi':                      'transactionDetails',
+  '/investment-status':        'investmentStatus',
+  '/portfolio':                'portfolio',
+  '/perks':                    'perksRecognition',
+  '/approvals':                'depositWithdrawal',
+  '/email-notifications':      'emailNotifications',
+  '/service-requests':         'serviceRequests',
+  '/news-media':               'newsMedia',
+  '/faq':                      'faqManagement',
+  '/settings/commission-slabs':'commissionSlabs',
+  '/settings/rewards':         'rewardsConfig',
+  '/settings':                 'settings',
+  '/sub-admins':               'subAdmins',
 };
 
 // ── Navigation Structure ───────────────────────
@@ -130,7 +160,7 @@ const navSections = [
   {
     title: 'Operations',
     items: [
-      { path: '/approvals', icon: 'approvals', label: 'Deposit & Withdrawal', badge: 7 },
+      { path: '/approvals', icon: 'approvals', label: 'Deposit & Withdrawal' },
       { path: '/email-notifications', icon: 'email', label: 'Email Notifications' },
       { path: '/service-requests', icon: 'support', label: 'Service Requests' },
       { path: '/news-media', icon: 'newsMedia', label: 'News & Media' },
@@ -140,46 +170,165 @@ const navSections = [
       { path: '/settings', icon: 'settings', label: 'Settings' },
     ],
   },
+  {
+    title: 'Admin',
+    items: [
+      { path: '/sub-admins', icon: 'subAdmins', label: 'Sub Admins' },
+    ],
+  },
 ];
+
+// ── Helper: read auth from localStorage ───────────────────────
+function getAuthInfo() {
+  try {
+    const raw = localStorage.getItem('kfpl_auth');
+    if (!raw) return { role: 'super-admin', permissions: null };
+    const parsed = JSON.parse(raw);
+    const admin = parsed?.admin || parsed;
+    return {
+      role: admin?.role || 'super-admin',
+      permissions: admin?.permissions || null,
+    };
+  } catch {
+    return { role: 'super-admin', permissions: null };
+  }
+}
+
+// ── Helper: check if a sub-admin has view permission for a module ───────
+function hasViewPermission(permissions, permKey) {
+  if (!permKey) return true; // null = always visible
+  if (!permissions) return false;
+  return !!permissions[permKey]?.view;
+}
 
 export default function Sidebar({ isCollapsed, onToggle, isMobileOpen, onMobileClose }) {
   const location = useLocation();
-  const [unresolvedCount, setUnresolvedCount] = useState(2);
+  const [unresolvedCount, setUnresolvedCount] = useState(0);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+
+  // Read role & permissions from localStorage
+  const { role, permissions } = useMemo(() => getAuthInfo(), []);
+  const isSuperAdmin = role === 'super-admin';
+
+  // Filter nav sections based on permissions for sub-admins
+  const filteredSections = useMemo(() => {
+    if (isSuperAdmin) return navSections;
+
+    return navSections
+      .map(section => ({
+        ...section,
+        items: section.items.filter(item => {
+          const permKey = PATH_PERMISSION_MAP[item.path];
+          return hasViewPermission(permissions, permKey);
+        }),
+      }))
+      .filter(section => section.items.length > 0);
+  }, [isSuperAdmin, permissions]);
 
   useEffect(() => {
-    const updateCount = async () => {
-      try {
-        const data = await apiRequest('/api/super-admin/service-requests');
-        let list = [];
-        if (Array.isArray(data)) {
-          list = data;
-        } else if (data) {
-          if (data.requests && Array.isArray(data.requests)) {
-            list = data.requests;
-          } else if (data.serviceRequests && Array.isArray(data.serviceRequests)) {
-            list = data.serviceRequests;
-          } else if (data.data) {
-            if (Array.isArray(data.data)) {
-              list = data.data;
-            } else if (data.data.requests && Array.isArray(data.data.requests)) {
-              list = data.data.requests;
-            } else if (data.data.serviceRequests && Array.isArray(data.data.serviceRequests)) {
-              list = data.data.serviceRequests;
+    const updateCounts = async () => {
+      // ── Service Requests Badge ──
+      // Only fetch if super-admin OR sub-admin has serviceRequests.view
+      const canViewRequests = isSuperAdmin || hasViewPermission(permissions, 'serviceRequests');
+
+      if (canViewRequests) {
+        if (location.pathname.startsWith('/service-requests')) {
+          setUnresolvedCount(0);
+          localStorage.setItem('kfpl_requests_viewed', 'true');
+          localStorage.setItem('kfpl_service_requests_last_read', Date.now().toString());
+        } else {
+          const isViewed = localStorage.getItem('kfpl_requests_viewed') === 'true';
+          const lastReadTime = parseInt(localStorage.getItem('kfpl_service_requests_last_read') || '0', 10);
+
+          try {
+            const data = await apiRequest('/api/super-admin/service-requests').catch(() => []);
+            let list = [];
+            if (Array.isArray(data)) {
+              list = data;
+            } else if (data) {
+              list = data.data?.requests || data.requests || data.serviceRequests || (Array.isArray(data.data) ? data.data : []) || [];
+            }
+
+            if (isViewed) {
+              if (lastReadTime > 0) {
+                const newUnresolved = list.filter(r => {
+                  const st = (r.status || '').toUpperCase();
+                  const isUnresolved = st === 'OPEN' || st === 'IN PROGRESS' || st === 'IN_PROGRESS';
+                  const reqTime = r.createdAt ? new Date(r.createdAt).getTime() : 0;
+                  return isUnresolved && reqTime > lastReadTime;
+                }).length;
+                setUnresolvedCount(newUnresolved);
+              } else {
+                setUnresolvedCount(0);
+              }
+            } else {
+              const count = list.filter(r => {
+                const st = (r.status || '').toUpperCase();
+                return st === 'OPEN' || st === 'IN PROGRESS' || st === 'IN_PROGRESS';
+              }).length;
+              setUnresolvedCount(count);
+            }
+          } catch (err) {
+            console.error('Failed to update sidebar unresolved badge:', err);
+          }
+        }
+      } else {
+        setUnresolvedCount(0);
+      }
+
+      // ── Deposit & Withdrawal Approvals Badge ──
+      // Only fetch if super-admin OR sub-admin has depositWithdrawal.view
+      const canViewApprovals = isSuperAdmin || hasViewPermission(permissions, 'depositWithdrawal');
+
+      if (canViewApprovals) {
+        if (location.pathname.startsWith('/approvals')) {
+          setPendingApprovalsCount(0);
+          localStorage.setItem('kfpl_approvals_viewed', 'true');
+          localStorage.setItem('kfpl_approvals_viewed_time', Date.now().toString());
+        } else {
+          const isViewed = localStorage.getItem('kfpl_approvals_viewed') === 'true';
+          if (isViewed) {
+            setPendingApprovalsCount(0);
+          } else {
+            try {
+              const [resDeposits, resWithdrawals] = await Promise.all([
+                apiRequest('/api/super-admin/transactions/approvals?type=deposit').catch(() => ({ queue: [] })),
+                apiRequest('/api/super-admin/transactions/approvals?type=withdrawal').catch(() => ({ queue: [] }))
+              ]);
+
+              const extractQueue = (res) => {
+                const data = res.data || res;
+                if (Array.isArray(data)) return data;
+                if (data.queue && Array.isArray(data.queue)) return data.queue;
+                if (data.transactions && Array.isArray(data.transactions)) return data.transactions;
+                return [];
+              };
+
+              const depQueue = extractQueue(resDeposits);
+              const withQueue = extractQueue(resWithdrawals);
+              const pendingDep = depQueue.filter(i => (i.status || 'pending').toLowerCase() === 'pending').length;
+              const pendingWith = withQueue.filter(i => (i.status || 'pending').toLowerCase() === 'pending').length;
+              
+              setPendingApprovalsCount(pendingDep + pendingWith);
+            } catch (err) {
+              console.error('Failed to update sidebar approvals badge:', err);
             }
           }
         }
-        const count = list.filter(r => r.status === 'Open' || r.status === 'In Progress').length;
-        setUnresolvedCount(count);
-      } catch (err) {
-        console.error('Failed to update sidebar unresolved badge:', err);
+      } else {
+        setPendingApprovalsCount(0);
       }
     };
     
-    updateCount();
+    updateCounts();
     
-    window.addEventListener('serviceRequestsUpdated', updateCount);
-    return () => window.removeEventListener('serviceRequestsUpdated', updateCount);
-  }, []);
+    window.addEventListener('serviceRequestsUpdated', updateCounts);
+    window.addEventListener('approvalsUpdated', updateCounts);
+    return () => {
+      window.removeEventListener('serviceRequestsUpdated', updateCounts);
+      window.removeEventListener('approvalsUpdated', updateCounts);
+    };
+  }, [location.pathname, isSuperAdmin, permissions]);
 
   const isActive = (path) => {
     if (path === '/dashboard') return location.pathname === '/dashboard';
@@ -222,14 +371,14 @@ export default function Sidebar({ isCollapsed, onToggle, isMobileOpen, onMobileC
           </div>
           <div className="kfpl-sidebar-logo-text">
             <span className="kfpl-sidebar-logo-title">KINETOSCOPE</span>
-            <span className="kfpl-sidebar-logo-subtitle">Super Admin Panel</span>
+            <span className="kfpl-sidebar-logo-subtitle">{isSuperAdmin ? 'Super Admin Panel' : 'Sub Admin Panel'}</span>
             <span className="kfpl-sidebar-logo-tagline" style={{ fontSize: '9px', color: 'rgba(255, 255, 255, 0.45)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px', display: 'block' }}>Films. Finance. Future.</span>
           </div>
         </div>
 
         {/* Navigation */}
         <nav className="kfpl-sidebar-nav">
-          {navSections.map((section) => (
+          {filteredSections.map((section) => (
             <div className="kfpl-sidebar-section" key={section.title}>
               <div className="kfpl-sidebar-section-title">{section.title}</div>
               {section.items.map((item) => (
@@ -241,8 +390,12 @@ export default function Sidebar({ isCollapsed, onToggle, isMobileOpen, onMobileC
                 >
                   <span className="kfpl-sidebar-item-icon">{icons[item.icon]}</span>
                   <span className="kfpl-sidebar-item-label">{item.label}</span>
-                  {item.path === '/service-requests' ? (
-                    unresolvedCount > 0 && (
+                  {item.path === '/approvals' ? (
+                    pendingApprovalsCount > 0 && !location.pathname.startsWith('/approvals') && (
+                      <span className="kfpl-sidebar-item-badge">{pendingApprovalsCount}</span>
+                    )
+                  ) : item.path === '/service-requests' ? (
+                    unresolvedCount > 0 && !location.pathname.startsWith('/service-requests') && (
                       <span className="kfpl-sidebar-item-badge">{unresolvedCount}</span>
                     )
                   ) : item.badge ? (

@@ -11,6 +11,7 @@ import Badge from '../../components/ui/Badge';
 import { formatCurrency } from '../../utils/formatters';
 import { apiRequest } from '../../config/apiHelper';
 import { useToast } from '../../components/ui/Toast';
+import { usePermissions } from '../../utils/usePermissions';
 
 function formatDateDMY(dateStr) {
   if (!dateStr) return '—';
@@ -46,6 +47,7 @@ function getEndDateYYYYMMDD(dateStr, periodMonths) {
 export default function InvestmentList() {
   const navigate = useNavigate();
   const addToast = useToast();
+  const { canCreate, canEdit, canDelete } = usePermissions();
   const [investments, setInvestments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [renderTrigger, setRenderTrigger] = useState(0);
@@ -320,24 +322,28 @@ export default function InvestmentList() {
             {uniqueStatuses.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
 
-          <button className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" onClick={() => navigate('/investments/assign')}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            Assign Investment
-          </button>
+          {canCreate('manageInvestments') && (
+            <button className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" onClick={() => navigate('/investments/assign')}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Assign Investment
+            </button>
+          )}
 
-          <button 
-            className="kfpl-btn kfpl-btn--danger kfpl-btn--sm" 
-            onClick={() => setShowClearAllModal(true)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-            Clear All Investments
-          </button>
+          {canDelete('manageInvestments') && (
+            <button 
+              className="kfpl-btn kfpl-btn--danger kfpl-btn--sm" 
+              onClick={() => setShowClearAllModal(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              Clear All Investments
+            </button>
+          )}
         </div>
       </div>
 

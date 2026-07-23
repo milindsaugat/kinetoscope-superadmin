@@ -60,11 +60,13 @@ export default function Login() {
         } else {
           // No TFA, log in directly
           localStorage.setItem('kfpl_tfa', 'false');
-          const adminObject = data.admin || data.data || data.user || {};
+          const adminObject = data.data?.user || data.data || data.admin || data.user || {};
           const storedAdmin = {
             ...adminObject,
             email: email, // ALWAYS use the typed email to log in
-            name: adminObject.name || 'Super Admin'
+            name: adminObject.name || 'Super Admin',
+            role: adminObject.role || 'super-admin',
+            permissions: adminObject.permissions || null,
           };
           console.log('🔐 Storing kfpl_auth admin (direct):', storedAdmin);
           localStorage.setItem('kfpl_auth', JSON.stringify({ 
@@ -109,11 +111,13 @@ export default function Login() {
 
       if (response.ok) {
         localStorage.setItem('kfpl_tfa', 'true');
-        const adminObject = data.admin || data.data || data.user || {};
+        const adminObject = data.admin || data.data?.user || data.data || data.user || {};
         const storedAdmin = {
           ...adminObject,
           email: email, // ALWAYS use the typed email to log in
-          name: adminObject.name || 'Super Admin'
+          name: adminObject.name || 'Super Admin',
+          role: adminObject.role || 'super-admin',
+          permissions: adminObject.permissions || null,
         };
         console.log('🔐 Storing kfpl_auth admin:', storedAdmin);
         localStorage.setItem('kfpl_auth', JSON.stringify({ 

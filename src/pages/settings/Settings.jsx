@@ -493,7 +493,17 @@ export default function Settings() {
     return localStorage.getItem('kfpl_tfa') === 'true';
   });
 
-  // Handle TFA toggle
+  const [clientTwoFactor, setClientTwoFactor] = useState(() => {
+    const val = localStorage.getItem('kfpl_client_tfa') || localStorage.getItem('kfpl_tfa_enabled');
+    return val === 'true';
+  });
+
+  const [agentTwoFactor, setAgentTwoFactor] = useState(() => {
+    const val = localStorage.getItem('kfpl_agent_tfa') || localStorage.getItem('kfpl_agent_2fa_enabled');
+    return val === 'true';
+  });
+
+  // Handle Super Admin TFA toggle
   const handleTfaToggle = async () => {
     const newValue = !twoFactor;
     const token = getToken();
@@ -529,7 +539,7 @@ export default function Settings() {
         }
 
         addToast(
-          `Two-Factor Authentication turned ${newValue ? 'ON' : 'OFF'}`,
+          `Super Admin 2FA turned ${newValue ? 'ON' : 'OFF'}`,
           newValue ? 'success' : 'info',
           'Security Update'
         );
@@ -540,6 +550,62 @@ export default function Settings() {
     } catch (err) {
       addToast('Unable to connect to server.', 'error', 'Error');
     }
+  };
+
+  // Handle Client Portal TFA toggle
+  const handleClientTfaToggle = async () => {
+    const newValue = !clientTwoFactor;
+    setClientTwoFactor(newValue);
+    localStorage.setItem('kfpl_client_tfa', String(newValue));
+    localStorage.setItem('kfpl_tfa_enabled', String(newValue));
+
+    const token = getToken();
+    if (token) {
+      try {
+        await fetch(getApiUrl('/api/super-admin/settings/client-2fa'), {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ is2FAEnabled: newValue }),
+        }).catch(() => {});
+      } catch (err) {}
+    }
+
+    addToast(
+      `Client Portal 2FA turned ${newValue ? 'ON' : 'OFF'}`,
+      newValue ? 'success' : 'info',
+      'Security Update'
+    );
+  };
+
+  // Handle Agent Portal TFA toggle
+  const handleAgentTfaToggle = async () => {
+    const newValue = !agentTwoFactor;
+    setAgentTwoFactor(newValue);
+    localStorage.setItem('kfpl_agent_tfa', String(newValue));
+    localStorage.setItem('kfpl_agent_2fa_enabled', String(newValue));
+
+    const token = getToken();
+    if (token) {
+      try {
+        await fetch(getApiUrl('/api/super-admin/settings/agent-2fa'), {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ is2FAEnabled: newValue }),
+        }).catch(() => {});
+      } catch (err) {}
+    }
+
+    addToast(
+      `Agent Portal 2FA turned ${newValue ? 'ON' : 'OFF'}`,
+      newValue ? 'success' : 'info',
+      'Security Update'
+    );
   };
 
   return (
@@ -664,14 +730,43 @@ export default function Settings() {
           {/* Security & TFA Options */}
           <div className="kfpl-detail-info-card">
             <div className="kfpl-detail-info-title">Security Settings</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0' }}>
-              <div>
-                <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>Two-Factor Authentication (2FA)</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>Requires entering an email OTP code when logging in</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '12px' }}>
+              {/* Super Admin 2FA */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--color-border)' }}>
+                <div>
+                  <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>Super Admin Portal 2FA</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>Requires entering an email OTP code when logging into Super Admin panel</div>
+                </div>
+                <div className="kfpl-toggle" onClick={handleTfaToggle} style={{ cursor: 'pointer' }}>
+                  <div className={`kfpl-toggle-track ${twoFactor ? 'active' : ''}`}>
+                    <div className="kfpl-toggle-thumb"></div>
+                  </div>
+                </div>
               </div>
-              <div className="kfpl-toggle" onClick={handleTfaToggle}>
-                <div className={`kfpl-toggle-track ${twoFactor ? 'active' : ''}`}>
-                  <div className="kfpl-toggle-thumb"></div>
+
+              {/* Client Portal 2FA */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--color-border)' }}>
+                <div>
+                  <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>Client Portal 2FA</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>Enforces email OTP verification during client portal login</div>
+                </div>
+                <div className="kfpl-toggle" onClick={handleClientTfaToggle} style={{ cursor: 'pointer' }}>
+                  <div className={`kfpl-toggle-track ${clientTwoFactor ? 'active' : ''}`}>
+                    <div className="kfpl-toggle-thumb"></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Agent Portal 2FA */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>Agent Portal 2FA</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>Enforces email OTP verification during agent portal login</div>
+                </div>
+                <div className="kfpl-toggle" onClick={handleAgentTfaToggle} style={{ cursor: 'pointer' }}>
+                  <div className={`kfpl-toggle-track ${agentTwoFactor ? 'active' : ''}`}>
+                    <div className="kfpl-toggle-thumb"></div>
+                  </div>
                 </div>
               </div>
             </div>

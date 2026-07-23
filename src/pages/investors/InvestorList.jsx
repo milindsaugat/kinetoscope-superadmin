@@ -12,6 +12,7 @@ import Badge from '../../components/ui/Badge';
 import { formatCurrency, getCategoryFromAmount } from '../../utils/formatters';
 import { apiRequest } from '../../config/apiHelper';
 import { useToast } from '../../components/ui/Toast';
+import { usePermissions } from '../../utils/usePermissions';
 
 export default function InvestorList() {
   const navigate = useNavigate();
@@ -273,77 +274,57 @@ export default function InvestorList() {
   const columns = [
     {
       header: 'Client ID',
-      render: (row) => <span>{row.clientCode || '—'}</span>,
-    },
-    {
-      header: 'Join Date',
-      render: (row) => <span>{formatDateDMY(row.joinDate)}</span>,
-    },
-    {
-      header: 'Contract Start Date',
-      render: (row) => <span>{formatDateDMY(row.contractStartDate)}</span>,
-    },
-    {
-      header: 'Contract End Date',
-      render: (row) => <span>{formatDateDMY(row.contractEndDate)}</span>,
-    },
-    {
-      header: 'Contract Extended Date',
-      render: (row) => <span>{formatDateDMY(row.extendContractDate)}</span>,
+      render: (row) => <span>{formatClientID(row.clientCode || row.idCustom || row._id || row.id)}</span>,
     },
     {
       header: 'Client Name',
-      render: (row) => <span style={{ fontWeight: 600 }}>{row.fullName || '—'}</span>,
+      render: (row) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%', background: 'var(--color-navy-light)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--color-gold)', fontWeight: 800, fontSize: 13, flexShrink: 0
+          }}>
+            {(row.fullName || row.name || 'C').charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, color: 'var(--color-navy)' }}>{row.fullName || row.name || 'N/A'}</div>
+            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{row.email || 'N/A'}</div>
+          </div>
+        </div>
+      )
     },
-    { header: 'Email Address', accessor: 'email' },
     {
-      header: 'Total Investment',
-      render: (row) => <span className="font-semibold">{formatCurrency(row.totalInvestment || 0)}</span>,
+      header: 'Phone',
+      render: (row) => row.phone || '—'
     },
     {
-      header: 'Monthly ROI % Allocated',
-      render: (row) => `${row.monthlyRoi ?? 0}%`,
-    },
-    {
-      header: 'Perks',
+      header: 'Assigned Agent',
       render: (row) => {
-        const perk = row.tier || 'silver';
-        return <Badge status={perk}>{perk.toUpperCase()}</Badge>;
-      },
-    },
-    {
-      header: 'Agent',
-      render: (row) => {
-        if (row.assignedAgentName) {
-          return (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (row.assignedAgent) navigate(`/agents/${row.assignedAgent}`);
-              }}
-              style={{
-                background: 'none', border: 'none', padding: 0,
-                fontWeight: 600, color: 'var(--color-gold-dark)',
-                textDecoration: 'underline', textUnderlineOffset: '3px',
-                cursor: 'pointer', fontSize: '0.875rem',
-              }}
-            >
-              {row.assignedAgentName}
-            </button>
-          );
-        }
-        return <Badge status="inactive">Non Agent Client</Badge>;
+        const agentName = row.assignedAgentName || row.assignedAgent?.name || row.agentName || row.agent?.name;
+        return agentName ? (
+          <span style={{ fontWeight: 600, color: 'var(--color-gold-dark)' }}>{agentName}</span>
+        ) : (
+          <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8125rem' }}>Direct / None</span>
+        );
       }
     },
     {
-      header: 'Agent Commission',
+      header: 'Total Investment',
+      render: (row) => <span className="font-semibold">{formatCurrency(row.totalInvestment || row.investmentAmount || 0)}</span>,
+    },
+    {
+      header: 'Investment Tier',
       render: (row) => {
-        if (!row.assignedAgentName) return <span style={{ color: 'var(--color-text-muted)' }}>—</span>;
-        return (
-          <span className="font-semibold" style={{ color: 'var(--color-success)' }}>
-            {row.agentCommissionMonthly || '—'}% monthly
-          </span>
-        );
+        const amount = row.totalInvestment || row.investmentAmount || 0;
+        const tier = row.category || getCategoryFromAmount(amount);
+        const tierStatusMap = {
+          'Silver': 'active',
+          'Gold': 'gold',
+          'Diamond': 'approved',
+          'Platinum': 'rejected'
+        };
+        return <Badge status={tierStatusMap[tier] || 'active'}>{tier}</Badge>;
       }
     },
     {
@@ -365,25 +346,41 @@ export default function InvestorList() {
         return <Badge status={status}>{status}</Badge>;
       },
     },
-    {
+    ...((canEdit('manageClients') || canDelete('manageClients')) ? [{
       header: 'Actions',
       render: (row) => (
-        <button
-          className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
-          style={{ padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-danger)' }}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleDeleteClientClick(row._id || row.id);
-          }}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" width="12" height="12">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-          </svg>
-          Delete
-        </button>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          {canEdit('manageClients') && (
+            <button
+              className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm"
+              style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/investors/${row._id || row.id}/edit`);
+              }}
+            >
+              Edit
+            </button>
+          )}
+          {canDelete('manageClients') && (
+            <button
+              className="kfpl-btn kfpl-btn--danger kfpl-btn--sm"
+              style={{ padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', border: '1px solid var(--color-danger)' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteClientClick(row._id || row.id);
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" width="12" height="12">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              Delete
+            </button>
+          )}
+        </div>
       )
-    }
+    }] : [])
   ];
 
   if (loading) {
@@ -459,23 +456,27 @@ export default function InvestorList() {
             </svg>
             Export CSV
           </button>
-          <button className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" onClick={() => navigate('/investors/add')}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            Add Client
-          </button>
-          <button 
-            className="kfpl-btn kfpl-btn--danger kfpl-btn--sm" 
-            onClick={() => setShowClearAllModal(true)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-            Clear All Clients
-          </button>
+          {canCreate('manageClients') && (
+            <button className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" onClick={() => navigate('/investors/add')}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Add Client
+            </button>
+          )}
+          {canDelete('manageClients') && (
+            <button 
+              className="kfpl-btn kfpl-btn--danger kfpl-btn--sm" 
+              onClick={() => setShowClearAllModal(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="16" height="16">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              Clear All Clients
+            </button>
+          )}
         </div>
       </div>
 

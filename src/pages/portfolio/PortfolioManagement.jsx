@@ -12,6 +12,7 @@ import DataTable from '../../components/ui/DataTable';
 import { INVESTMENT_SEGMENTS } from '../../data/mockData';
 import { formatCurrency } from '../../utils/formatters';
 import { useToast } from '../../components/ui/Toast';
+import { usePermissions } from '../../utils/usePermissions';
 import { apiRequest } from '../../config/apiHelper';
 
 // ── Default project data ────────────────────────
@@ -48,7 +49,8 @@ const formatClientID = (rawId) => {
 };
 
 export default function PortfolioManagement() {
-  const addToast = useToast();
+  const { addToast } = useToast();
+  const { canCreate, canEdit, canDelete } = usePermissions();
   const fileInputRef = useRef(null);
 
   // ── State ──────────────────────────
@@ -267,12 +269,17 @@ export default function PortfolioManagement() {
 
         let cName = 'Unknown Client';
         let cId = '—';
+        // Priority: ClientProfile fullName > User.name > email prefix
+        const resolvedName = al._resolvedClientName;
+        const userPopulatedName = (clientObj && typeof clientObj === 'object') ? (clientObj.name || clientObj.fullName) : null;
+        const emailPrefix = (clientObj && typeof clientObj === 'object' && clientObj.email)
+          ? clientObj.email.split('@')[0]
+          : null;
+        cName = resolvedName || userPopulatedName || emailPrefix || 'Unknown Client';
         if (clientObj && typeof clientObj === 'object') {
-          cName = clientObj.fullName || clientObj.name || al.clientName || 'Unknown Client';
-          cId = clientObj.clientId || clientObj.clientCode || clientObj.id || '—';
+          cId = al._resolvedClientCode || clientObj.clientCode || clientObj.clientId || clientObj.id || '—';
         } else {
-          cName = typeof clientObj === 'string' ? clientObj : (al.clientName || 'Unknown Client');
-          cId = al.clientId || '—';
+          cId = al._resolvedClientCode || al.clientId || '—';
         }
 
         // Just in case any fallback is still an object
@@ -1431,9 +1438,11 @@ export default function PortfolioManagement() {
           <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" onClick={openSegmentsManager}>
             Manage Segments
           </button>
-          <button className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" onClick={openAddModal}>
-            + Add Project
-          </button>
+          {canCreate('portfolio') && (
+            <button className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" onClick={openAddModal}>
+              + Add Project
+            </button>
+          )}
         </div>
       </div>
 
@@ -1572,17 +1581,23 @@ export default function PortfolioManagement() {
 
                     {/* Actions */}
                     <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'flex-end', position: 'relative', zIndex: 10 }} onClick={e => e.stopPropagation()}>
-                      <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" onClick={() => openEditModal(project)}>Edit</button>
-                      <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" style={{ color: 'var(--color-danger)' }} onClick={() => setDeleteConfirm(project)}>Delete</button>
-                      <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => {
-                        setUploadTarget(project.id);
-                        setTimeout(() => fileInputRef.current?.click(), 50);
-                      }}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
-                          <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                        </svg>
-                        Upload
-                      </button>
+                      {canEdit('portfolio') && (
+                        <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" onClick={() => openEditModal(project)}>Edit</button>
+                      )}
+                      {canDelete('portfolio') && (
+                        <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" style={{ color: 'var(--color-danger)' }} onClick={() => setDeleteConfirm(project)}>Delete</button>
+                      )}
+                      {canCreate('portfolio') && (
+                        <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => {
+                          setUploadTarget(project.id);
+                          setTimeout(() => fileInputRef.current?.click(), 50);
+                        }}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                          </svg>
+                          Upload
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

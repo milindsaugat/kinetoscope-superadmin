@@ -9,6 +9,7 @@ import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import { formatCurrency } from '../../utils/formatters';
 import { useToast } from '../../components/ui/Toast';
+import { usePermissions } from '../../utils/usePermissions';
 import { apiRequest } from '../../config/apiHelper';
 
 const formatAgentID = (rawId) => {
@@ -68,7 +69,8 @@ const getSlabRate = (slabs, typeNorm, amount) => {
 
 export default function ROIList() {
   const navigate = useNavigate();
-  const addToast = useToast();
+  const { addToast } = useToast();
+  const { canCreate, canEdit, canDelete } = usePermissions();
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [recipientTypeFilter, setRecipientTypeFilter] = useState('all');
@@ -771,26 +773,32 @@ export default function ROIList() {
             </svg>
             Export CSV
           </button>
-          <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" onClick={() => setShowUploadModal(true)}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px', marginRight: '6px' }}>
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
-            Bulk CSV Upload
-          </button>
-          <button className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" onClick={() => setShowPayoutModal(true)}>
-            + Record Payout
-          </button>
-          <button className="kfpl-btn kfpl-btn--danger kfpl-btn--sm" onClick={() => setShowClearAllConfirmModal(true)}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px', marginRight: '6px' }}>
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-              <line x1="10" y1="11" x2="10" y2="17"></line>
-              <line x1="14" y1="11" x2="14" y2="17"></line>
-            </svg>
-            Clear All Records
-          </button>
+          {canCreate('transactionDetails') && (
+            <>
+              <button className="kfpl-btn kfpl-btn--ghost kfpl-btn--sm" onClick={() => setShowUploadModal(true)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px', marginRight: '6px' }}>
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                Bulk CSV Upload
+              </button>
+              <button className="kfpl-btn kfpl-btn--primary kfpl-btn--sm" onClick={() => setShowPayoutModal(true)}>
+                + Record Payout
+              </button>
+            </>
+          )}
+          {canDelete('transactionDetails') && (
+            <button className="kfpl-btn kfpl-btn--danger kfpl-btn--sm" onClick={() => setShowClearAllConfirmModal(true)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px', marginRight: '6px' }}>
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                <line x1="10" y1="11" x2="10" y2="17"></line>
+                <line x1="14" y1="11" x2="14" y2="17"></line>
+              </svg>
+              Clear All Records
+            </button>
+          )}
         </div>
       </div>
 

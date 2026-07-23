@@ -64,6 +64,7 @@ export default function Header({ isCollapsed, onMenuClick }) {
 
   // Service requests state
   const [requestsList, setRequestsList] = useState([]);
+  const [hasUnreadRequests, setHasUnreadRequests] = useState(false);
 
   // Refs for click-away detection
   const profileRef = useRef(null);
@@ -85,6 +86,8 @@ export default function Header({ isCollapsed, onMenuClick }) {
   }
   const adminName = adminInfo?.name || 'Super Admin';
   const adminEmail = adminInfo?.email || 'admin@kfpl.com';
+  const adminRole = adminInfo?.role || 'super-admin';
+  const roleLabel = adminRole === 'sub-admin' ? 'Sub Admin' : 'Administrator';
 
   useEffect(() => {
     document.documentElement.classList.remove('dark-theme');
@@ -94,9 +97,19 @@ export default function Header({ isCollapsed, onMenuClick }) {
   // Fetch initial data for notifications & requests on mount
   const fetchHeaderData = async () => {
     try {
-      // 1. Fetch Clients and Agents for onboarding notifications
-      const clientsData = await apiRequest('/api/super-admin/clients').catch(() => []);
-      const agentsData = await apiRequest('/api/super-admin/agents').catch(() => []);
+      // Determine sub-admin permissions to guard API calls
+      const perms = adminInfo?.permissions;
+      const isSuperAdminUser = adminRole !== 'sub-admin';
+      const canViewClients = isSuperAdminUser || !!perms?.manageClients?.view;
+      const canViewAgents = isSuperAdminUser || !!perms?.manageAgents?.view;
+      const canViewRequests = isSuperAdminUser || !!perms?.serviceRequests?.view;
+
+      // 1. Fetch Clients, Agents, and Service Requests concurrently using Promise.all
+      const [clientsData, agentsData, requestsData] = await Promise.all([
+        canViewClients ? apiRequest('/api/super-admin/clients').catch(() => []) : Promise.resolve([]),
+        canViewAgents ? apiRequest('/api/super-admin/agents').catch(() => []) : Promise.resolve([]),
+        canViewRequests ? apiRequest('/api/super-admin/service-requests').catch(() => []) : Promise.resolve([])
+      ]);
       
       const extractClients = (res) => {
         if (!res) return [];
@@ -156,24 +169,56 @@ export default function Header({ isCollapsed, onMenuClick }) {
 
       // Sort notification list: latest first
       notifyList.sort((a, b) => b.date - a.date);
-      setNotifications(notifyList.slice(0, 15)); // Keep latest 15
-      
-      // Simple heuristic: count notifications created in the last 2 days
-      const limit = Date.now() - 2 * 24 * 60 * 60 * 1000;
-      setUnreadNotifications(notifyList.filter(n => n.date.getTime() > limit).length);
 
-      // 2. Fetch Service Requests for the chat bubble
-      const requestsData = await apiRequest('/api/super-admin/service-requests').catch(() => []);
+      // Read read status from localStorage
+      let readIds = [];
+      let lastReadTime = 0;
+      try {
+        const storedReadIds = localStorage.getItem('kfpl_read_notifications');
+        readIds = storedReadIds ? JSON.parse(storedReadIds) : [];
+        const storedLastRead = localStorage.getItem('kfpl_notifications_last_read');
+        lastReadTime = storedLastRead ? parseInt(storedLastRead, 10) : 0;
+      } catch (e) {
+        console.error('Error loading notification read state:', e);
+      }
+
+      const formattedNotifications = notifyList.slice(0, 15).map(n => {
+        const itemTime = n.date ? n.date.getTime() : 0;
+        const isRead = readIds.includes(n.id) || (lastReadTime > 0 && itemTime <= lastReadTime);
+        return { ...n, isRead };
+      });
+
+      setNotifications(formattedNotifications);
+      setUnreadNotifications(formattedNotifications.filter(n => !n.isRead).length);
+
+      // 2. Process Service Requests for the chat bubble
       let reqs = [];
       if (Array.isArray(requestsData)) {
         reqs = requestsData;
       } else if (requestsData) {
-        reqs = requestsData.requests || requestsData.serviceRequests || requestsData.data || [];
+        reqs = requestsData.data?.requests || requestsData.requests || requestsData.serviceRequests || (Array.isArray(requestsData.data) ? requestsData.data : []) || [];
       }
       
       // Sort: latest requests first and slice 5
       const sortedReqs = [...reqs].sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
       setRequestsList(sortedReqs.slice(0, 5));
+
+      const openCount = reqs.filter(r => (r.status || '').toUpperCase() === 'OPEN' || r.status === 'Open').length;
+      let lastReadReqTime = 0;
+      let isRequestsViewed = false;
+      try {
+        const storedLastRead = localStorage.getItem('kfpl_service_requests_last_read');
+        lastReadReqTime = storedLastRead ? parseInt(storedLastRead, 10) : 0;
+        isRequestsViewed = localStorage.getItem('kfpl_requests_viewed') === 'true';
+      } catch (e) {}
+
+      const newestReqTime = sortedReqs.length > 0 && sortedReqs[0].createdAt ? new Date(sortedReqs[0].createdAt).getTime() : 0;
+
+      if (openCount > 0 && !isRequestsViewed && (lastReadReqTime === 0 || newestReqTime > lastReadReqTime)) {
+        setHasUnreadRequests(true);
+      } else {
+        setHasUnreadRequests(false);
+      }
 
       // 3. Load FAQs from localStorage
       try {
@@ -186,6 +231,59 @@ export default function Header({ isCollapsed, onMenuClick }) {
     } catch (e) {
       console.error('Error fetching header metrics', e);
     }
+  };
+
+  const markServiceRequestsAsRead = () => {
+    const now = Date.now();
+    try {
+      localStorage.setItem('kfpl_service_requests_last_read', now.toString());
+      localStorage.setItem('kfpl_requests_viewed', 'true');
+    } catch (e) {
+      console.error('Failed to save service request read state:', e);
+    }
+    setHasUnreadRequests(false);
+    window.dispatchEvent(new Event('serviceRequestsUpdated'));
+  };
+
+  const markAllNotificationsAsRead = () => {
+    const now = Date.now();
+    try {
+      localStorage.setItem('kfpl_notifications_last_read', now.toString());
+      const allIds = notifications.map(n => n.id);
+      let readIds = [];
+      try {
+        const stored = localStorage.getItem('kfpl_read_notifications');
+        readIds = stored ? JSON.parse(stored) : [];
+      } catch (e) {}
+      const updatedRead = Array.from(new Set([...readIds, ...allIds]));
+      localStorage.setItem('kfpl_read_notifications', JSON.stringify(updatedRead));
+    } catch (e) {
+      console.error('Failed to save read notification state:', e);
+    }
+    setUnreadNotifications(0);
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+  };
+
+  const markNotificationAsRead = (id) => {
+    try {
+      let readIds = [];
+      try {
+        const stored = localStorage.getItem('kfpl_read_notifications');
+        readIds = stored ? JSON.parse(stored) : [];
+      } catch (e) {}
+      if (!readIds.includes(id)) {
+        readIds.push(id);
+        localStorage.setItem('kfpl_read_notifications', JSON.stringify(readIds));
+      }
+    } catch (e) {
+      console.error('Failed to save read state:', e);
+    }
+    setNotifications(prev => {
+      const updated = prev.map(n => n.id === id ? { ...n, isRead: true } : n);
+      const unreadCount = updated.filter(n => !n.isRead).length;
+      setUnreadNotifications(unreadCount);
+      return updated;
+    });
   };
 
   useEffect(() => {
@@ -477,10 +575,14 @@ export default function Header({ isCollapsed, onMenuClick }) {
           <button 
             className={`kfpl-header-icon-btn ${showNotificationDropdown ? 'active' : ''}`} 
             onClick={() => {
-              setShowNotificationDropdown(!showNotificationDropdown);
+              const nextState = !showNotificationDropdown;
+              setShowNotificationDropdown(nextState);
               setShowSearchDropdown(false);
               setShowRequestDropdown(false);
               setShowProfileDropdown(false);
+              if (nextState) {
+                markAllNotificationsAsRead();
+              }
             }}
             aria-label="Notifications"
           >
@@ -499,7 +601,17 @@ export default function Header({ isCollapsed, onMenuClick }) {
             <div className="kfpl-header-dropdown-card">
               <div className="kfpl-header-dropdown-header">
                 <span className="kfpl-header-dropdown-title">Onboarding Alerts</span>
-                <span style={{ fontSize: '0.725rem', color: 'var(--color-emerald)', fontWeight: 700 }}>New Registrations</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.725rem', color: 'var(--color-emerald)', fontWeight: 700 }}>New Registrations</span>
+                  {notifications.some(n => !n.isRead) && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); markAllNotificationsAsRead(); }}
+                      style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '0.725rem', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="kfpl-header-dropdown-body">
                 {notifications.length === 0 ? (
@@ -511,7 +623,15 @@ export default function Header({ isCollapsed, onMenuClick }) {
                     <div 
                       key={n.id} 
                       className="kfpl-dropdown-list-item"
-                      onClick={() => { navigate(n.link); setShowNotificationDropdown(false); }}
+                      style={{
+                        background: n.isRead ? 'transparent' : 'rgba(239, 68, 68, 0.04)',
+                        position: 'relative'
+                      }}
+                      onClick={() => {
+                        markNotificationAsRead(n.id);
+                        navigate(n.link);
+                        setShowNotificationDropdown(false);
+                      }}
                     >
                       <div style={{
                         width: '32px', height: '32px', borderRadius: '50%',
@@ -523,9 +643,14 @@ export default function Header({ isCollapsed, onMenuClick }) {
                         {n.type === 'client' ? 'C' : 'A'}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                        <span style={{ fontSize: '0.825rem', color: 'var(--color-navy)', fontWeight: 700 }}>
-                          New {n.type === 'client' ? 'Client' : 'Agent'} Onboarded
-                        </span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.825rem', color: 'var(--color-navy)', fontWeight: 700 }}>
+                            New {n.type === 'client' ? 'Client' : 'Agent'} Onboarded
+                          </span>
+                          {!n.isRead && (
+                            <span style={{ fontSize: '0.625rem', background: '#ef4444', color: '#fff', padding: '1px 6px', borderRadius: '10px', fontWeight: 700 }}>New</span>
+                          )}
+                        </div>
                         <span style={{ fontSize: '0.725rem', color: '#64748b', fontWeight: 600 }}>{n.name}</span>
                         <span style={{ fontSize: '0.675rem', color: '#94a3b8', marginTop: '2px' }}>{n.email}</span>
                       </div>
@@ -537,23 +662,28 @@ export default function Header({ isCollapsed, onMenuClick }) {
           )}
         </div>
 
-        {/* 3. Messages (Chat Icon - Latest 5 Service Requests) */}
+        {/* 3. Messages / Service Requests (Chat Icon - Latest 5 Service Requests) */}
         <div className="kfpl-dropdown-container" ref={requestRef} style={{ position: 'relative' }}>
           <button 
             className={`kfpl-header-icon-btn ${showRequestDropdown ? 'active' : ''}`} 
             onClick={() => {
-              setShowRequestDropdown(!showRequestDropdown);
+              const nextState = !showRequestDropdown;
+              setShowRequestDropdown(nextState);
               setShowSearchDropdown(false);
               setShowNotificationDropdown(false);
               setShowProfileDropdown(false);
+              if (nextState) {
+                markServiceRequestsAsRead();
+              }
             }}
-            aria-label="Messages"
+            aria-label="Service Requests"
+            title="Recent Service Requests"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
-            {requestsList.filter(r => r.status === 'Open').length > 0 && (
-              <span className="kfpl-header-notification-dot" style={{ background: 'var(--color-gold)' }}></span>
+            {hasUnreadRequests && (
+              <span className="kfpl-header-notification-dot" style={{ background: '#f59e0b' }}></span>
             )}
           </button>
 
@@ -561,7 +691,12 @@ export default function Header({ isCollapsed, onMenuClick }) {
             <div className="kfpl-header-dropdown-card">
               <div className="kfpl-header-dropdown-header">
                 <span className="kfpl-header-dropdown-title">Recent Service Requests</span>
-                <span onClick={() => { navigate('/service-requests'); setShowRequestDropdown(false); }} style={{ cursor: 'pointer', textDecoration: 'underline', fontSize: '0.725rem', color: 'var(--color-gold-dark)', fontWeight: 700 }}>View All</span>
+                <span 
+                  onClick={() => { markServiceRequestsAsRead(); navigate('/service-requests'); setShowRequestDropdown(false); }} 
+                  style={{ cursor: 'pointer', textDecoration: 'underline', fontSize: '0.725rem', color: 'var(--color-gold-dark)', fontWeight: 700 }}
+                >
+                  View All
+                </span>
               </div>
               <div className="kfpl-header-dropdown-body">
                 {requestsList.length === 0 ? (
@@ -570,28 +705,34 @@ export default function Header({ isCollapsed, onMenuClick }) {
                   </div>
                 ) : (
                   requestsList.map(r => {
-                    const labelColor = r.status === 'Open' ? '#ef4444' : r.status === 'In Progress' ? '#f59e0b' : '#10b981';
+                    const st = (r.status || '').toUpperCase();
+                    const labelColor = (st === 'OPEN' || st === 'PENDING') ? '#ef4444' : (st === 'IN PROGRESS' || st === 'IN_PROGRESS') ? '#f59e0b' : '#10b981';
+                    const raiser = r.createdBy?.name || r.createdBy?.email || r.clientName || r.clientEmail || r.agentName || 'User';
                     return (
                       <div 
                         key={r.id || r._id} 
                         className="kfpl-dropdown-list-item"
-                        onClick={() => { navigate('/service-requests'); setShowRequestDropdown(false); }}
+                        onClick={() => { markServiceRequestsAsRead(); navigate('/service-requests'); setShowRequestDropdown(false); }}
                       >
                         <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: '0.825rem', fontWeight: 700, color: 'var(--color-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }}>
-                              {r.subject || r.type || 'Service Query'}
+                              {r.subject || r.title || r.category || r.type || 'Service Query'}
                             </span>
                             <span style={{
-                              fontSize: '0.625rem', fontWeight: 800, padding: '2px 6px',
-                              borderRadius: '4px', background: labelColor + '20', color: labelColor,
+                              fontSize: '0.625rem',
+                              fontWeight: 800,
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              background: labelColor + '20',
+                              color: labelColor,
                               textTransform: 'uppercase'
                             }}>
-                              {r.status}
+                              {r.status || 'OPEN'}
                             </span>
                           </div>
                           <span style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '2px' }}>
-                            Raised by: {r.clientName || r.clientEmail || r.agentName || 'User'}
+                            Raised by: {raiser}
                           </span>
                         </div>
                       </div>
@@ -611,7 +752,7 @@ export default function Header({ isCollapsed, onMenuClick }) {
             <div className="kfpl-header-avatar">{adminName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}</div>
             <div className="kfpl-header-profile-info">
               <span className="kfpl-header-profile-name">{adminName}</span>
-              <span className="kfpl-header-profile-role">Administrator</span>
+              <span className="kfpl-header-profile-role">{roleLabel}</span>
             </div>
             <svg
               viewBox="0 0 24 24"

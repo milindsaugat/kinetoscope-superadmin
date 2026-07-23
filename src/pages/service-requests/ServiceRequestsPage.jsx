@@ -174,6 +174,10 @@ export default function ServiceRequestsPage() {
   };
 
   useEffect(() => {
+    localStorage.setItem('kfpl_service_requests_last_read', Date.now().toString());
+    localStorage.setItem('kfpl_requests_viewed', 'true');
+    window.dispatchEvent(new Event('serviceRequestsUpdated'));
+
     fetchRaiserData().then(() => {
       fetchRequests();
     });
