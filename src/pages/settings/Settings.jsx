@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../../components/ui/Toast';
 import { getApiUrl } from '../../config/apiUrl';
+import { getAuthData, getAuthToken } from '../../utils/authStorage';
 
 // ── 6-Digit Reusable OTP Input Component ───────────────────────
 function OtpInput({ value, onChange, idPrefix = 'otp', length = 6 }) {
@@ -109,17 +110,15 @@ export default function Settings() {
 
   // Auth/Email State
   const [currentUser, setCurrentUser] = useState(() => {
-    const authData = localStorage.getItem('kfpl_auth');
-    return authData ? JSON.parse(authData) : { token: 'mock-jwt', admin: { name: 'Super Admin', email: 'admin@kfpl.com' } };
+    const authData = getAuthData();
+    return authData || { token: 'mock-jwt', admin: { name: 'Super Admin', email: 'admin@kfpl.com' } };
   });
 
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const authData = localStorage.getItem('kfpl_auth');
-        console.log('DEBUG Settings: loaded authData from localStorage:', authData);
-        const parsedAuth = authData ? JSON.parse(authData) : null;
+        const parsedAuth = getAuthData();
         const token = parsedAuth?.token;
         if (!token) {
           console.warn('DEBUG Settings: No token found in authData');
@@ -236,8 +235,7 @@ export default function Settings() {
 
   // Helper to get auth token
   const getToken = () => {
-    const authData = localStorage.getItem('kfpl_auth');
-    return authData ? JSON.parse(authData)?.token : null;
+    return getAuthToken();
   };
 
   // Step 1: Send OTP to current email for verification (Email)
@@ -424,8 +422,8 @@ export default function Settings() {
     setUpdatingPassword(true);
 
     try {
-      const authData = localStorage.getItem('kfpl_auth');
-      const token = authData ? JSON.parse(authData)?.token : null;
+      const parsedAuth = getAuthData();
+      const token = parsedAuth?.token;
 
       if (!token) {
         setPasswordError('Authentication token not found. Please log in again.');

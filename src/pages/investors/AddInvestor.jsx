@@ -10,6 +10,7 @@ import { useToast } from '../../components/ui/Toast';
 import FileDropzone from '../../components/ui/FileDropzone';
 import { getApiUrl } from '../../config/apiUrl';
 import { apiRequest } from '../../config/apiHelper';
+import { getAuthToken } from '../../utils/authStorage';
 
 const formatAgentID = (rawId) => {
   if (!rawId || rawId === '—') return '—';
@@ -156,12 +157,7 @@ export default function AddInvestor() {
     setIsSubmitting(true);
 
     try {
-      const authData = localStorage.getItem('kfpl_auth');
-      let jwtToken = '';
-      if (authData) {
-        const parsed = JSON.parse(authData);
-        jwtToken = parsed.token || '';
-      }
+      const jwtToken = getAuthToken();
 
       // Construct FormData for multipart upload
       const formData = new FormData();

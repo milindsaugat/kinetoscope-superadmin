@@ -13,6 +13,7 @@ import { apiRequest } from '../../config/apiHelper';
 import { usePermissions } from '../../utils/usePermissions';
 import { getApiUrl } from '../../config/apiUrl';
 import Modal from '../../components/ui/Modal';
+import { getAuthToken } from '../../utils/authStorage';
 const formatAgentID = (rawId) => {
   if (!rawId || rawId === '—') return '—';
   if (rawId.startsWith('KFPL-AG-') || rawId.startsWith('KFPL-AGT-')) {
@@ -493,12 +494,7 @@ export default function AgentDetail() {
         
         const headers = {};
         if (!isCloudinary) {
-          const authData = localStorage.getItem('kfpl_auth');
-          let token = '';
-          if (authData) {
-            const parsed = JSON.parse(authData);
-            token = parsed.token || '';
-          }
+          const token = getAuthToken();
           if (token) {
             headers['Authorization'] = `Bearer ${token}`;
           }
@@ -1155,12 +1151,7 @@ export default function AgentDetail() {
 
     addToast('Starting secure file download...', 'info', 'Downloading');
     try {
-      const authData = localStorage.getItem('kfpl_auth');
-      let token = '';
-      if (authData) {
-        const parsed = JSON.parse(authData);
-        token = parsed.token || '';
-      }
+      const token = getAuthToken();
 
       const headers = {};
       if (token) {

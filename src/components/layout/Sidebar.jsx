@@ -8,6 +8,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { getApiUrl } from '../../config/apiUrl';
 import { apiRequest } from '../../config/apiHelper';
+import { getAuthToken, clearAuthData, getAuthUser } from '../../utils/authStorage';
 
 // ── SVG Icons ───────────────────────
 const icons = {
@@ -167,24 +168,17 @@ const navSections = [
       { path: '/faq', icon: 'faq', label: 'FAQ Management' },
       { path: '/settings/commission-slabs', icon: 'roi', label: 'Commission Slabs' },
       { path: '/settings/rewards', icon: 'perks', label: 'Rewards Config' },
-      { path: '/settings', icon: 'settings', label: 'Settings' },
-    ],
-  },
-  {
-    title: 'Admin',
-    items: [
       { path: '/sub-admins', icon: 'subAdmins', label: 'Sub Admins' },
+      { path: '/settings', icon: 'settings', label: 'Settings' },
     ],
   },
 ];
 
-// ── Helper: read auth from localStorage ───────────────────────
+// ── Helper: read auth from storage ───────────────────────
 function getAuthInfo() {
   try {
-    const raw = localStorage.getItem('kfpl_auth');
-    if (!raw) return { role: 'super-admin', permissions: null };
-    const parsed = JSON.parse(raw);
-    const admin = parsed?.admin || parsed;
+    const admin = getAuthUser();
+    if (!admin) return { role: 'super-admin', permissions: null };
     return {
       role: admin?.role || 'super-admin',
       permissions: admin?.permissions || null,
@@ -337,8 +331,7 @@ export default function Sidebar({ isCollapsed, onToggle, isMobileOpen, onMobileC
   };
 
   const handleLogout = async () => {
-    const authData = localStorage.getItem('kfpl_auth');
-    const token = authData ? JSON.parse(authData)?.token : null;
+    const token = getAuthToken();
     if (token) {
       try {
         await fetch(getApiUrl('/api/auth/logout'), {
@@ -351,7 +344,7 @@ export default function Sidebar({ isCollapsed, onToggle, isMobileOpen, onMobileC
         console.error('Failed to log out from server', err);
       }
     }
-    localStorage.removeItem('kfpl_auth');
+    clearAuthData();
     window.location.href = '/login';
   };
 

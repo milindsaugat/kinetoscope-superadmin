@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getApiUrl } from '../../config/apiUrl';
+import { setAuthData } from '../../utils/authStorage';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -69,10 +70,10 @@ export default function Login() {
             permissions: adminObject.permissions || null,
           };
           console.log('🔐 Storing kfpl_auth admin (direct):', storedAdmin);
-          localStorage.setItem('kfpl_auth', JSON.stringify({ 
+          setAuthData({ 
             token: data.token, 
             admin: storedAdmin
-          }));
+          });
           navigate('/dashboard');
         }
       } else {
@@ -120,10 +121,10 @@ export default function Login() {
           permissions: adminObject.permissions || null,
         };
         console.log('🔐 Storing kfpl_auth admin:', storedAdmin);
-        localStorage.setItem('kfpl_auth', JSON.stringify({ 
+        setAuthData({ 
           token: data.token, 
           admin: storedAdmin
-        }));
+        });
         navigate('/dashboard');
       } else {
         setOtpError(data.message || data.error || 'Invalid OTP.');

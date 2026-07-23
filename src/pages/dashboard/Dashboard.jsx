@@ -16,6 +16,7 @@ import AreaChart from '../../components/charts/AreaChart';
 import Badge from '../../components/ui/Badge';
 import { apiRequest } from '../../config/apiHelper';
 import { formatCurrency, formatNumber } from '../../utils/formatters';
+import { getAuthUser } from '../../utils/authStorage';
 
 const formatClientID = (rawId) => {
   if (!rawId || rawId === '—') return '—';
@@ -95,19 +96,21 @@ export default function Dashboard() {
       const cacheData = localStorage.getItem('kfpl_super_admin_dashboard_cache');
       if (cacheData) {
         const parsed = JSON.parse(cacheData);
-        if (parsed.stats) setStats(parsed.stats);
-        if (parsed.investorsRanked) setInvestorsRanked(parsed.investorsRanked);
-        if (parsed.segments) setSegments(parsed.segments);
-        if (parsed.investmentStatus) setInvestmentStatus(parsed.investmentStatus);
-        if (parsed.investmentFlow) setInvestmentFlow(parsed.investmentFlow);
-        if (parsed.agentContribution) setAgentContribution(parsed.agentContribution);
-        if (parsed.agentsRanked) setAgentsRanked(parsed.agentsRanked);
-        if (parsed.roiTrend) setRoiTrend(parsed.roiTrend);
-        if (parsed.activities && Array.isArray(parsed.activities)) setActivities(parsed.activities);
-        setLoading(false);
+        if (parsed && typeof parsed === 'object') {
+          if (parsed.stats && typeof parsed.stats === 'object') setStats(parsed.stats);
+          if (Array.isArray(parsed.investorsRanked)) setInvestorsRanked(parsed.investorsRanked);
+          if (Array.isArray(parsed.segments)) setSegments(parsed.segments);
+          if (Array.isArray(parsed.investmentStatus)) setInvestmentStatus(parsed.investmentStatus);
+          if (Array.isArray(parsed.investmentFlow)) setInvestmentFlow(parsed.investmentFlow);
+          if (Array.isArray(parsed.agentContribution)) setAgentContribution(parsed.agentContribution);
+          if (Array.isArray(parsed.agentsRanked)) setAgentsRanked(parsed.agentsRanked);
+          if (Array.isArray(parsed.roiTrend)) setRoiTrend(parsed.roiTrend);
+          if (Array.isArray(parsed.activities)) setActivities(parsed.activities);
+        }
       }
     } catch (e) {
       console.warn('Failed to parse super admin dashboard cache:', e);
+      localStorage.removeItem('kfpl_super_admin_dashboard_cache');
     }
 
     const fetchDashboard = async () => {
@@ -119,26 +122,14 @@ export default function Dashboard() {
           apiRequest('/api/super-admin/roi/payouts?status=All&recipientType=All').catch(() => null)
         ]);
 
-        const data = res?.data || res;
+        const data = res?.data || res || {};
         const MOCK_NAMES = ['John Doe', 'Sunil Verma', 'Kavita Reddy', 'Amit Joshi', 'Meera Iyer', 'Suresh Patel'];
-        let realActiveInvestmentsCount = 0;
-        let realTotalInvestmentAmt = 0;
-        let realTotalInvestorsCount = 0;
-        let realTotalRoiPaid = 0;
-
-        let computedInvestors = [];
-        let computedSegments = [];
-        let computedInvestmentStatus = [];
-        let computedInflow = [];
-        let computedContribution = [];
-        let computedAgentsRanked = [];
-        let computedRoiTrend = [];
-        let mappedActivities = [];
 
         // 1. Process Top Investors dynamically from clients list
+        let computedInvestors = [];
         if (clientsRes) {
           const list = clientsRes.data?.clients || clientsRes.data || clientsRes.clients || [];
-          if (Array.isArray(list)) {
+          if (Array.isArray(list) && list.length > 0) {
             const rawClients = list.filter(c => {
               if (!c || typeof c !== 'object') return false;
               const profile = c.profile || {};
@@ -147,222 +138,318 @@ export default function Dashboard() {
               return name.trim() !== '';
             });
 
-            realTotalInvestorsCount = rawClients.length;
+            if (rawClients.length > 0) {
+              const sortedClients = [...rawClients].sort((a, b) => {
+                const aInv = a.totalInvestment || a.profile?.totalInvestment || a.summaryCards?.totalInvestment || a.profile?.totalPortfolioValue || 0;
+                const bInv = b.totalInvestment || b.profile?.totalInvestment || b.summaryCards?.totalInvestment || b.profile?.totalPortfolioValue || 0;
+                return bInv - aInv;
+              });
 
-            // Sort clients by total investment descending
-            const sortedClients = [...rawClients].sort((a, b) => {
-              const aInv = a.totalInvestment || a.profile?.totalInvestment || a.summaryCards?.totalInvestment || a.profile?.totalPortfolioValue || 0;
-              const bInv = b.totalInvestment || b.profile?.totalInvestment || b.summaryCards?.totalInvestment || b.profile?.totalPortfolioValue || 0;
-              return bInv - aInv;
-            });
-
-            // Set Top Investors dynamically from the real database clients list
-            computedInvestors = sortedClients.slice(0, 5).map((c, i) => {
-              const profile = c.profile || {};
-              const user = c.userId || c.user || {};
-              const amount = c.totalInvestment || c.profile?.totalInvestment || c.summaryCards?.totalInvestment || c.profile?.totalPortfolioValue || 0;
-              return {
-                id: c._id || c.id || i,
-                name: profile.fullName || user.name || c.fullName || c.name || 'Investor',
-                clientId: formatClientID(user.clientCode || c.clientCode || c.clientId || profile.clientId || i + 1),
-                category: (c.tier || c.profile?.tier || c.category || c.profile?.category || 'silver').toLowerCase(),
-                amount
-              };
-            });
-            setInvestorsRanked(computedInvestors);
+              computedInvestors = sortedClients.slice(0, 5).map((c, i) => {
+                const profile = c.profile || {};
+                const user = c.userId || c.user || {};
+                const amount = c.totalInvestment || c.profile?.totalInvestment || c.summaryCards?.totalInvestment || c.profile?.totalPortfolioValue || 0;
+                return {
+                  id: c._id || c.id || i,
+                  name: profile.fullName || user.name || c.fullName || c.name || 'Investor',
+                  clientId: formatClientID(user.clientCode || c.clientCode || c.clientId || profile.clientId || i + 1),
+                  category: (c.tier || c.profile?.tier || c.category || c.profile?.category || 'silver').toLowerCase(),
+                  amount
+                };
+              });
+            }
           }
         }
 
-        // 2. Process Segment Distribution, status, inflow, and agent contribution from investments list (all database records)
+        if (computedInvestors.length === 0 && data.topInvestors && Array.isArray(data.topInvestors)) {
+          computedInvestors = data.topInvestors.map((inv, i) => ({
+            id: inv._id || inv.id || i,
+            name: inv.name || inv.clientName || 'Investor',
+            clientId: formatClientID(inv.code || inv.clientCode || i + 1),
+            category: (inv.category || inv.tier || 'silver').toLowerCase(),
+            amount: inv.totalActiveAmt || inv.amount || 0
+          }));
+        }
+        setInvestorsRanked(computedInvestors);
+
+        // 2. Process Investments List
+        let realActiveInvestmentsCount = 0;
+        let realTotalInvestmentAmt = 0;
+        let computedSegments = [];
+        let computedInvestmentStatus = [];
+        let computedInflow = [];
+        let computedContribution = [];
+        let computedAgentsRanked = [];
+
         if (investmentsRes) {
           const list = Array.isArray(investmentsRes)
             ? investmentsRes
             : (investmentsRes.investments || investmentsRes.data?.investments || (investmentsRes.data && Array.isArray(investmentsRes.data) ? investmentsRes.data : []));
 
-          // Include all database investments except those associated with mock names
-          const cleanInvests = list.filter(inv => {
-            const clientName = inv.clientName || 
-                               inv.investorName || 
-                               (inv.clientId && typeof inv.clientId === 'object' ? (inv.clientId.profile?.fullName || inv.clientId.userId?.name) : '') || 
-                               '';
-            return clientName.trim() !== '' && !MOCK_NAMES.includes(clientName.trim());
-          });
+          if (Array.isArray(list) && list.length > 0) {
+            const cleanInvests = list.filter(inv => {
+              const clientName = inv.clientName || 
+                                 inv.investorName || 
+                                 (inv.clientId && typeof inv.clientId === 'object' ? (inv.clientId.profile?.fullName || inv.clientId.userId?.name) : '') || 
+                                 '';
+              return !clientName || !MOCK_NAMES.includes(clientName.trim());
+            });
 
-          realActiveInvestmentsCount = cleanInvests.length;
-          realTotalInvestmentAmt = cleanInvests.reduce((sum, inv) => sum + (inv.investmentAmount || inv.amount || 0), 0);
+            realActiveInvestmentsCount = cleanInvests.length;
+            realTotalInvestmentAmt = cleanInvests.reduce((sum, inv) => sum + (inv.investmentAmount || inv.amount || 0), 0);
 
-          // Calculate Segment Distribution
-          const segmentSums = {};
-          let grandTotal = 0;
-          cleanInvests.forEach(inv => {
-            const amount = inv.investmentAmount || inv.amount || 0;
-            if (Array.isArray(inv.segmentAllocation) && inv.segmentAllocation.length > 0) {
-              inv.segmentAllocation.forEach(alloc => {
-                const segName = alloc.segmentName || 'Unknown';
-                const pct = alloc.allocationPercentage || 100;
-                const partAmount = (amount * pct) / 100;
-                segmentSums[segName] = (segmentSums[segName] || 0) + partAmount;
-                grandTotal += partAmount;
-              });
-            } else if (inv.segment) {
-              const segName = inv.segment;
-              segmentSums[segName] = (segmentSums[segName] || 0) + amount;
-              grandTotal += amount;
-            }
-          });
-
-          computedSegments = Object.keys(segmentSums).map(segName => ({
-            segment: segName,
-            value: grandTotal > 0 ? Math.round((segmentSums[segName] / grandTotal) * 100) : 0,
-            amount: segmentSums[segName]
-          }));
-          setSegments(computedSegments);
-
-          // Calculate Investment Status Split (Active, Pending, Closed)
-          const statusCounts = { Active: 0, Pending: 0, Closed: 0 };
-          cleanInvests.forEach(inv => {
-            const rawStatus = (inv.status || 'Active').toLowerCase();
-            if (rawStatus === 'active') statusCounts.Active++;
-            else if (rawStatus === 'pending') statusCounts.Pending++;
-            else if (rawStatus === 'closed') statusCounts.Closed++;
-            else statusCounts.Active++;
-          });
-          const totalStatus = statusCounts.Active + statusCounts.Pending + statusCounts.Closed;
-          computedInvestmentStatus = [
-            { status: 'Active', count: statusCounts.Active, percentage: totalStatus > 0 ? Math.round((statusCounts.Active / totalStatus) * 100) : 0, color: '#10B981' },
-            { status: 'Pending', count: statusCounts.Pending, percentage: totalStatus > 0 ? Math.round((statusCounts.Pending / totalStatus) * 100) : 0, color: '#F59E0B' },
-            { status: 'Closed', count: statusCounts.Closed, percentage: totalStatus > 0 ? Math.round((statusCounts.Closed / totalStatus) * 100) : 0, color: '#EF4444' }
-          ];
-          setInvestmentStatus(computedInvestmentStatus);
-
-          // Calculate Monthly Inflow & Outflow Trend
-          const monthlyInflow = {};
-          const monthlyOutflow = {};
-          cleanInvests.forEach(inv => {
-            const date = new Date(inv.investmentDate || inv.date || inv.createdAt);
-            const amount = inv.investmentAmount || inv.amount || 0;
-            if (!isNaN(date.getTime())) {
-              const monthName = date.toLocaleDateString('en-US', { month: 'short' });
-              monthlyInflow[monthName] = (monthlyInflow[monthName] || 0) + amount;
-              if ((inv.status || '').toLowerCase() === 'closed') {
-                monthlyOutflow[monthName] = (monthlyOutflow[monthName] || 0) + amount;
+            // Calculate Segment Distribution
+            const segmentSums = {};
+            let grandTotal = 0;
+            cleanInvests.forEach(inv => {
+              const amount = inv.investmentAmount || inv.amount || 0;
+              if (Array.isArray(inv.segmentAllocation) && inv.segmentAllocation.length > 0) {
+                inv.segmentAllocation.forEach(alloc => {
+                  const segName = alloc.segmentName || 'Unknown';
+                  const pct = alloc.allocationPercentage || 100;
+                  const partAmount = (amount * pct) / 100;
+                  segmentSums[segName] = (segmentSums[segName] || 0) + partAmount;
+                  grandTotal += partAmount;
+                });
+              } else if (inv.segment) {
+                const segName = inv.segment;
+                segmentSums[segName] = (segmentSums[segName] || 0) + amount;
+                grandTotal += amount;
               }
-            }
-          });
-          const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-          computedInflow = monthOrder.map(m => ({
-            month: m,
-            investments: monthlyInflow[m] || 0,
-            withdrawals: monthlyOutflow[m] || 0
-          }));
-          const hasInflow = Object.values(monthlyInflow).some(v => v > 0);
-          setInvestmentFlow(hasInflow ? computedInflow : []);
+            });
 
-          // Calculate Agent Contribution / Performance
-          const agentSums = {};
-          cleanInvests.forEach(inv => {
-            const amount = inv.investmentAmount || inv.amount || 0;
-            const clientObj = inv.clientId && typeof inv.clientId === 'object' ? inv.clientId : null;
-            const agentName = inv.assignedAgentName || 
-                              (clientObj && clientObj.assignedAgentName) || 
-                              (inv.assignedAgent && typeof inv.assignedAgent === 'object' ? inv.assignedAgent.name : '') || 
-                              'Direct / Admin';
-            if (agentName) {
-              agentSums[agentName] = (agentSums[agentName] || 0) + amount;
-            }
-          });
-          computedContribution = Object.keys(agentSums).map(name => ({
-            name,
-            amount: agentSums[name],
-            clients: 0
-          })).sort((a, b) => b.amount - a.amount);
-          setAgentContribution(computedContribution);
+            computedSegments = Object.keys(segmentSums).map(segName => ({
+              segment: segName,
+              value: grandTotal > 0 ? Math.round((segmentSums[segName] / grandTotal) * 100) : 0,
+              amount: segmentSums[segName]
+            }));
 
-          computedAgentsRanked = computedContribution.map((a, i) => ({
-            id: i,
-            name: a.name,
-            agentId: `AGT-${String(i+1).padStart(3, '0')}`,
-            clients: a.clients || 1,
-            totalInvestment: a.amount
-          }));
-          setAgentsRanked(computedAgentsRanked);
+            // Investment Status Split
+            const statusCounts = { Active: 0, Pending: 0, Closed: 0 };
+            cleanInvests.forEach(inv => {
+              const rawStatus = (inv.status || 'Active').toLowerCase();
+              if (rawStatus === 'active') statusCounts.Active++;
+              else if (rawStatus === 'pending') statusCounts.Pending++;
+              else if (rawStatus === 'closed') statusCounts.Closed++;
+              else statusCounts.Active++;
+            });
+            const totalStatus = statusCounts.Active + statusCounts.Pending + statusCounts.Closed;
+            if (totalStatus > 0) {
+              computedInvestmentStatus = [
+                { status: 'Active', count: statusCounts.Active, percentage: Math.round((statusCounts.Active / totalStatus) * 100), color: '#10B981' },
+                { status: 'Pending', count: statusCounts.Pending, percentage: Math.round((statusCounts.Pending / totalStatus) * 100), color: '#F59E0B' },
+                { status: 'Closed', count: statusCounts.Closed, percentage: Math.round((statusCounts.Closed / totalStatus) * 100), color: '#EF4444' }
+              ];
+            }
+
+            // Monthly Inflow
+            const monthlyInflow = {};
+            const monthlyOutflow = {};
+            cleanInvests.forEach(inv => {
+              const date = new Date(inv.investmentDate || inv.date || inv.createdAt);
+              const amount = inv.investmentAmount || inv.amount || 0;
+              if (!isNaN(date.getTime())) {
+                const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+                monthlyInflow[monthName] = (monthlyInflow[monthName] || 0) + amount;
+                if ((inv.status || '').toLowerCase() === 'closed') {
+                  monthlyOutflow[monthName] = (monthlyOutflow[monthName] || 0) + amount;
+                }
+              }
+            });
+            const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            computedInflow = monthOrder.map(m => ({
+              month: m,
+              investments: monthlyInflow[m] || 0,
+              withdrawals: monthlyOutflow[m] || 0
+            }));
+
+            // Agent Contribution
+            const agentSums = {};
+            cleanInvests.forEach(inv => {
+              const amount = inv.investmentAmount || inv.amount || 0;
+              const clientObj = inv.clientId && typeof inv.clientId === 'object' ? inv.clientId : null;
+              const agentName = inv.assignedAgentName || 
+                                (clientObj && clientObj.assignedAgentName) || 
+                                (inv.assignedAgent && typeof inv.assignedAgent === 'object' ? inv.assignedAgent.name : '') || 
+                                'Direct / Admin';
+              if (agentName) {
+                agentSums[agentName] = (agentSums[agentName] || 0) + amount;
+              }
+            });
+            computedContribution = Object.keys(agentSums).map(name => ({
+              name,
+              amount: agentSums[name],
+              clients: 0
+            })).sort((a, b) => b.amount - a.amount);
+
+            computedAgentsRanked = computedContribution.map((a, i) => ({
+              id: i,
+              name: a.name,
+              agentId: `AGT-${String(i+1).padStart(3, '0')}`,
+              clients: a.clients || 1,
+              totalInvestment: a.amount
+            }));
+          }
         }
 
-        // 3. Process ROI Payouts Trend dynamically from payouts list
+        // Apply segments with fallbacks
+        if (computedSegments.length > 0) {
+          setSegments(computedSegments);
+        } else if (data.segments && Array.isArray(data.segments)) {
+          setSegments(data.segments.map(s => ({
+            segment: s.segment || s.name || 'Segment',
+            value: s.percentage !== undefined ? s.percentage : (s.value || 0),
+            amount: s.amount || 0
+          })));
+        }
+
+        // Apply investment status with fallbacks
+        if (computedInvestmentStatus.length > 0) {
+          setInvestmentStatus(computedInvestmentStatus);
+        } else if (data.investmentStatus) {
+          const invStat = data.investmentStatus;
+          const act = invStat.active || invStat.activeInvestments || 0;
+          const pend = invStat.pending || invStat.pendingDeposits || 0;
+          const cls = invStat.closed || invStat.closedInvestments || 0;
+          const tot = act + pend + cls;
+          setInvestmentStatus([
+            { status: 'Active', count: act, percentage: tot > 0 ? Math.round((act / tot) * 100) : 0, color: '#10B981' },
+            { status: 'Pending', count: pend, percentage: tot > 0 ? Math.round((pend / tot) * 100) : 0, color: '#F59E0B' },
+            { status: 'Closed', count: cls, percentage: tot > 0 ? Math.round((cls / tot) * 100) : 0, color: '#EF4444' }
+          ]);
+        }
+
+        // Apply investment flow with fallbacks
+        const hasInflow = computedInflow.some(v => v.investments > 0 || v.withdrawals > 0);
+        if (hasInflow) {
+          setInvestmentFlow(computedInflow);
+        } else if (data.monthlyCharts && Array.isArray(data.monthlyCharts)) {
+          setInvestmentFlow(data.monthlyCharts.map(m => ({
+            month: m.month,
+            investments: m.inflow || m.investments || 0,
+            withdrawals: m.withdrawal || m.withdrawals || 0
+          })));
+        }
+
+        // Apply agent contribution with fallbacks
+        if (computedContribution.length > 0) {
+          setAgentContribution(computedContribution);
+          setAgentsRanked(computedAgentsRanked);
+        } else if (data.topAgentsContribution || data.agentPerformance) {
+          const agentList = data.topAgentsContribution || data.agentPerformance || [];
+          if (Array.isArray(agentList)) {
+            setAgentContribution(agentList.map(a => ({
+              name: a.name || a.agentName || 'Agent',
+              amount: a.amount || a.investmentVolume || a.totalInvestment || 0,
+              clients: a.clientsCount || a.clientCount || 0
+            })));
+            setAgentsRanked(agentList.map((a, i) => ({
+              id: a.agentId || i,
+              name: a.name || a.agentName || 'Agent',
+              agentId: a.code || a.agentCode || `AGT-${String(i+1).padStart(3, '0')}`,
+              clients: a.clientsCount || a.clientCount || 0,
+              totalInvestment: a.amount || a.investmentVolume || a.totalInvestment || 0
+            })));
+          }
+        }
+
+        // 3. Process ROI Payouts
+        let realTotalRoiPaid = 0;
+        let computedRoiTrend = [];
+
         if (payoutsRes) {
           const pList = Array.isArray(payoutsRes)
             ? payoutsRes
             : (payoutsRes.payouts || payoutsRes.data?.payouts || (payoutsRes.data && Array.isArray(payoutsRes.data) ? payoutsRes.data : []));
 
-          // Filter out mock payout records
-          const cleanPayouts = pList.filter(p => {
-            const recipientName = p.recipientName || 
-                                  p.investorName || 
-                                  p.name || 
-                                  '';
-            return recipientName.trim() !== '' && !MOCK_NAMES.includes(recipientName.trim());
-          });
+          if (Array.isArray(pList) && pList.length > 0) {
+            const cleanPayouts = pList.filter(p => {
+              const recipientName = p.recipientName || p.investorName || p.name || '';
+              return !recipientName || !MOCK_NAMES.includes(recipientName.trim());
+            });
 
-          // Calculate total paid ROI (only those with status === 'paid')
-          const paidPayouts = cleanPayouts.filter(p => (p.status || '').toLowerCase() === 'paid');
-          realTotalRoiPaid = paidPayouts.reduce((sum, p) => sum + (p.amount || p.payoutAmount || 0), 0);
-          
-          const monthlyRoiSums = {};
-          paidPayouts.forEach(p => {
-            const date = new Date(p.createdAt || p.payoutDate || p.dueDate || p.paidAt);
-            if (!isNaN(date.getTime())) {
-              const monthName = date.toLocaleDateString('en-US', { month: 'short' });
-              monthlyRoiSums[monthName] = (monthlyRoiSums[monthName] || 0) + (p.amount || p.payoutAmount || 0);
-            }
-          });
-          const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-          computedRoiTrend = monthOrder.map(m => ({
-            month: m,
-            amount: monthlyRoiSums[m] || 0
-          }));
-          const hasPayouts = Object.values(monthlyRoiSums).some(v => v > 0);
-          setRoiTrend(hasPayouts ? computedRoiTrend : []);
+            const paidPayouts = cleanPayouts.filter(p => (p.status || '').toLowerCase() === 'paid');
+            realTotalRoiPaid = paidPayouts.reduce((sum, p) => sum + (p.amount || p.payoutAmount || 0), 0);
+            
+            const monthlyRoiSums = {};
+            paidPayouts.forEach(p => {
+              const date = new Date(p.createdAt || p.payoutDate || p.dueDate || p.paidAt);
+              if (!isNaN(date.getTime())) {
+                const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+                monthlyRoiSums[monthName] = (monthlyRoiSums[monthName] || 0) + (p.amount || p.payoutAmount || 0);
+              }
+            });
+            const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            computedRoiTrend = monthOrder.map(m => ({
+              month: m,
+              amount: monthlyRoiSums[m] || 0
+            }));
+          }
         }
 
-        // 4. Update core stats reactively
-        let freshStats = {};
-        if (data) {
-          freshStats = {
-            totalInvestors: realTotalInvestorsCount,
-            investorChange: data.investorChange ?? data.stats?.investorChange ?? 0,
-            totalInvestment: realTotalInvestmentAmt,
-            investmentChange: data.investmentChange ?? data.stats?.investmentChange ?? 0,
-            totalROIPaid: realTotalRoiPaid,
-            roiChange: data.roiChange ?? data.stats?.roiChange ?? 0,
-            totalAgents: data.totalAgents ?? data.stats?.totalAgents ?? data.agentsCount ?? 0,
-            agentChange: data.agentChange ?? data.stats?.agentChange ?? 0,
-            pendingApprovals: data.pendingApprovals ?? data.stats?.pendingApprovals ?? data.pendingCount ?? 0,
-            activeInvestments: realActiveInvestmentsCount,
-          };
-          setStats(freshStats);
-
-          // Recent Activity — 100% Dynamic from Database
-          const ensureArray = (val, fallback = []) => Array.isArray(val) ? val : fallback;
-          const rawActivity = ensureArray(
-            data?.recentActivities || data?.data?.recentActivities || 
-            data?.recentActivity || data?.data?.recentActivity || 
-            data?.activities || data?.data?.activities
-          );
-          mappedActivities = rawActivity.map((item, idx) => ({
-            id: item.id || item._id || idx,
-            text: item.text || item.message || 'Platform activity recorded',
-            type: (item.type || 'info').toLowerCase(),
-            time: item.timestamp || item.time || item.createdAt || 'Just now'
-          }));
-          setActivities(mappedActivities);
+        const hasPayouts = computedRoiTrend.some(v => v.amount > 0);
+        if (hasPayouts) {
+          setRoiTrend(computedRoiTrend);
+        } else if (data.monthlyCharts && Array.isArray(data.monthlyCharts)) {
+          setRoiTrend(data.monthlyCharts.map(m => ({
+            month: m.month,
+            amount: m.roiPaid || m.roi || m.roiAmount || 0
+          })));
         }
+
+        // 4. Update core stats reactively with server data as primary source
+        const finalInvestorsCount = (data.totalInvestors !== undefined && data.totalInvestors !== 0)
+          ? data.totalInvestors
+          : ((data.totalClients) || (data.stats?.totalInvestors) || realTotalInvestorsCount || 0);
+
+        const finalTotalInvestment = (data.totalInvestment !== undefined && data.totalInvestment !== 0)
+          ? data.totalInvestment
+          : ((data.totalInvestmentAmount) || (data.stats?.totalInvestment) || realTotalInvestmentAmt || 0);
+
+        const finalRoiPaid = (data.totalRoiPaid !== undefined && data.totalRoiPaid !== 0)
+          ? data.totalRoiPaid
+          : ((data.roiPaid) || (data.stats?.totalRoiPaid) || realTotalRoiPaid || 0);
+
+        const finalActiveInvestments = (data.activeInvestments !== undefined && data.activeInvestments !== 0)
+          ? data.activeInvestments
+          : ((data.activeInvestmentsCount) || (data.stats?.activeInvestments) || realActiveInvestmentsCount || 0);
+
+        let freshStats = {
+          totalInvestors: finalInvestorsCount,
+          investorChange: data.investorChange ?? data.stats?.investorChange ?? 0,
+          totalInvestment: finalTotalInvestment,
+          investmentChange: data.investmentChange ?? data.stats?.investmentChange ?? 0,
+          totalROIPaid: finalRoiPaid,
+          roiChange: data.roiChange ?? data.stats?.roiChange ?? 0,
+          totalAgents: data.totalAgents ?? data.stats?.totalAgents ?? data.agentsCount ?? 0,
+          agentChange: data.agentChange ?? data.stats?.agentChange ?? 0,
+          pendingApprovals: data.pendingApprovals ?? data.stats?.pendingApprovals ?? data.pendingCount ?? 0,
+          activeInvestments: finalActiveInvestments,
+        };
+        setStats(freshStats);
+
+        // Recent Activity
+        let mappedActivities = [];
+        const ensureArray = (val, fallback = []) => Array.isArray(val) ? val : fallback;
+        const rawActivity = ensureArray(
+          data?.recentActivities || data?.data?.recentActivities || 
+          data?.recentActivity || data?.data?.recentActivity || 
+          data?.activities || data?.data?.activities
+        );
+        mappedActivities = rawActivity.map((item, idx) => ({
+          id: item.id || item._id || idx,
+          text: item.text || item.message || 'Platform activity recorded',
+          type: (item.type || 'info').toLowerCase(),
+          time: item.timestamp || item.time || item.createdAt || 'Just now'
+        }));
+        setActivities(mappedActivities);
 
         // Save fresh calculations to SWR Cache
         localStorage.setItem('kfpl_super_admin_dashboard_cache', JSON.stringify({
           stats: freshStats,
           investorsRanked: computedInvestors,
-          segments: computedSegments,
-          investmentStatus: computedInvestmentStatus,
+          segments: computedSegments.length > 0 ? computedSegments : (data.segments || []),
+          investmentStatus: computedInvestmentStatus.length > 0 ? computedInvestmentStatus : [],
           investmentFlow: computedInflow,
           agentContribution: computedContribution,
           agentsRanked: computedAgentsRanked,
@@ -400,7 +487,14 @@ export default function Dashboard() {
         <div className="kfpl-welcome-content">
           <div className="kfpl-welcome-text">
             <h1 className="kfpl-welcome-title">
-              Welcome back, <span className="kfpl-welcome-name">Super Admin</span>
+              Welcome back, <span className="kfpl-welcome-name">
+                {(() => {
+                  const admin = getAuthUser();
+                  if (admin?.name) return admin.name;
+                  if (admin?.role === 'sub-admin') return 'Sub Admin';
+                  return 'Super Admin';
+                })()}
+              </span>
             </h1>
             <p className="kfpl-welcome-subtitle">
               {dateStr} — Here's your platform overview.
@@ -499,7 +593,7 @@ export default function Dashboard() {
           <div className="kfpl-chart-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px', width: '100%', padding: '10px 15px', flex: 1, overflow: 'hidden' }}>
             <div style={{ flex: 1.2, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               <PieChart 
-                data={segments.map((seg, idx) => ({
+                data={(Array.isArray(segments) ? segments : []).map((seg, idx) => ({
                   status: seg.segment,
                   count: seg.amount || 0,
                   percentage: seg.value,
@@ -511,7 +605,7 @@ export default function Dashboard() {
               />
             </div>
             <div className="kfpl-chart-legend-side" style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto', paddingRight: '4px', flex: 1 }}>
-              {segments.map((seg, i) => (
+              {(Array.isArray(segments) ? segments : []).map((seg, i) => (
                 <div 
                   key={seg.segment} 
                   style={{ 
@@ -584,9 +678,9 @@ export default function Dashboard() {
             <Badge status="gold">{stats.activeInvestments} Total</Badge>
           </div>
           <div className="kfpl-chart-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', gap: '20px', width: '100%', padding: '10px 0', flex: 1 }}>
-            <PieChart data={investmentStatus} size={180} strokeWidth={24} />
+            <PieChart data={Array.isArray(investmentStatus) ? investmentStatus : []} size={180} strokeWidth={24} />
             <div className="kfpl-chart-legend-side" style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '200px', overflowY: 'auto', paddingRight: '8px' }}>
-              {investmentStatus.map(seg => (
+              {(Array.isArray(investmentStatus) ? investmentStatus : []).map(seg => (
                 <div className="kfpl-legend-item" key={seg.status} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
                   <span className="kfpl-legend-dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: seg.color, display: 'inline-block', flexShrink: 0 }} />
                   <span style={{ color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>{seg.status}</span>
@@ -611,8 +705,8 @@ export default function Dashboard() {
           </div>
           <div className="kfpl-chart-body">
             <div className="kfpl-vbar-chart">
-              {investmentFlow.map((d, i) => {
-                const maxVal = Math.max(...investmentFlow.map(x => x.investments || 0), 1);
+              {(Array.isArray(investmentFlow) ? investmentFlow : []).map((d, i) => {
+                const maxVal = Math.max(...(Array.isArray(investmentFlow) ? investmentFlow : []).map(x => x.investments || 0), 1);
                 const pct = ((d.investments || 0) / maxVal) * 100;
                 return (
                   <div className="kfpl-vbar-col" key={i}>
@@ -686,7 +780,7 @@ export default function Dashboard() {
           </div>
           <div className="kfpl-chart-body" style={{ maxHeight: '400px', overflowY: 'auto' }}>
             <div className="kfpl-activity-feed">
-              {activities.length > 0 ? (
+              {Array.isArray(activities) && activities.length > 0 ? (
                 activities.map(item => (
                   <div className="kfpl-activity-item" key={item.id}>
                     <div className={`kfpl-activity-icon-wrap ${item.type}`}>
@@ -718,7 +812,7 @@ export default function Dashboard() {
           </div>
           <div className="kfpl-chart-body">
             <div className="kfpl-widget-list">
-              {investorsRanked.map((inv, i) => (
+              {(Array.isArray(investorsRanked) ? investorsRanked : []).map((inv, i) => (
                 <div className="kfpl-widget-item" key={inv.id}>
                   <div className={`kfpl-widget-rank ${i < 3 ? 'gold' : 'silver'}`}>
                     #{i + 1}
@@ -747,7 +841,7 @@ export default function Dashboard() {
           </div>
           <div className="kfpl-chart-body">
             <div className="kfpl-widget-list">
-              {agentsRanked.map((agent, i) => (
+              {(Array.isArray(agentsRanked) ? agentsRanked : []).map((agent, i) => (
                 <div className="kfpl-widget-item" key={agent.id}>
                   <div className={`kfpl-widget-rank ${i < 3 ? 'gold' : 'silver'}`}>
                     #{i + 1}

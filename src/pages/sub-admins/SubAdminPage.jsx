@@ -44,13 +44,8 @@ const MODULE_GROUPS = [
       { key: 'serviceRequests',    label: 'Service Requests' },
       { key: 'newsMedia',          label: 'News & Media' },
       { key: 'faqManagement',      label: 'FAQ Management' },
-    ],
-  },
-  {
-    group: 'Admin',
-    modules: [
-      { key: 'settings',  label: 'Settings' },
-      { key: 'subAdmins', label: 'Sub Admins' },
+      { key: 'subAdmins',         label: 'Sub Admins' },
+      { key: 'settings',          label: 'Settings' },
     ],
   },
 ];
@@ -61,19 +56,52 @@ const PERM_COLS = ['view', 'create', 'edit', 'delete'];
 const emptyPermissions = () =>
   Object.fromEntries(ALL_MODULE_KEYS.map(k => [k, { view: false, create: false, edit: false, delete: false }]));
 
+const normalizePermissions = (rawPerms) => {
+  const base = emptyPermissions();
+  if (!rawPerms || typeof rawPerms !== 'object') return base;
+  
+  const merged = { ...base };
+  Object.keys(rawPerms).forEach(k => {
+    const mod = rawPerms[k] || {};
+    const view = !!mod.view || !!mod.create || !!mod.edit || !!mod.delete;
+    merged[k] = {
+      view,
+      create: !!mod.create,
+      edit: !!mod.edit,
+      delete: !!mod.delete
+    };
+  });
+  return merged;
+};
+
 // ── Permission Matrix ───────────────────────
 function PermissionMatrix({ permissions, onChange, moduleSearch }) {
   const toggle = (modKey, col) => {
-    const newVal = !permissions[modKey][col];
-    const updated = { ...permissions[modKey], [col]: newVal };
+    const current = permissions[modKey] || { view: false, create: false, edit: false, delete: false };
+    const newVal = !current[col];
+    const updated = { ...current, [col]: newVal };
+
+    // Auto-check View when Create, Edit, or Delete is turned ON
     if (newVal && (col === 'create' || col === 'edit' || col === 'delete')) {
       updated.view = true;
     }
+
+    // Auto-uncheck Create, Edit, and Delete when View is turned OFF
+    if (!newVal && col === 'view') {
+      updated.create = false;
+      updated.edit = false;
+      updated.delete = false;
+    }
+
     onChange({ ...permissions, [modKey]: updated });
   };
   const toggleAll = (modKey) => {
-    const allOn = PERM_COLS.every(c => permissions[modKey][c]);
-    onChange({ ...permissions, [modKey]: Object.fromEntries(PERM_COLS.map(c => [c, !allOn])) });
+    const allOn = PERM_COLS.every(c => permissions[modKey]?.[c]);
+    const newVal = !allOn;
+    onChange({
+      ...permissions,
+      [modKey]: { view: newVal, create: newVal, edit: newVal, delete: newVal }
+    });
   };
 
   const filteredGroups = MODULE_GROUPS.map(g => ({
@@ -153,9 +181,7 @@ function SubAdminModal({ mode, initial, onClose, onSaved }) {
     name: initial?.name || '',
     email: initial?.email || '',
     password: '',
-    permissions: initial?.permissions
-      ? { ...emptyPermissions(), ...initial.permissions }
-      : emptyPermissions(),
+    permissions: normalizePermissions(initial?.permissions),
   });
 
   const handleField = (key, val) => setForm(f => ({ ...f, [key]: val }));

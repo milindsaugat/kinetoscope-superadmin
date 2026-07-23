@@ -76,9 +76,11 @@ import SubAdminPage from './pages/sub-admins/SubAdminPage';
 // ── 404 ───────────────────────
 import NotFound from './pages/NotFound';
 
+import { getAuthData } from './utils/authStorage';
+
 // ── Protected Route Wrapper ───────────────────────
 function ProtectedRoute({ children }) {
-  const auth = localStorage.getItem('kfpl_auth');
+  const auth = getAuthData();
   if (!auth) return <Navigate to="/login" replace />;
   return children;
 }
@@ -92,9 +94,8 @@ function PermissionRoute({ permissionKey, action = 'view', children }) {
   if (!permissionKey) return children;
 
   try {
-    const raw = localStorage.getItem('kfpl_auth');
-    if (!raw) return <Navigate to="/login" replace />;
-    const parsed = JSON.parse(raw);
+    const parsed = getAuthData();
+    if (!parsed) return <Navigate to="/login" replace />;
     const admin = parsed?.admin || parsed;
     const role = admin?.role || 'super-admin';
 

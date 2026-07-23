@@ -5,6 +5,7 @@
    ============================================================ */
 
 import axios from 'axios';
+import { getAuthToken, clearAuthData } from '../utils/authStorage';
 
 // Local + Production URLs
 const BASE_URL =
@@ -24,17 +25,12 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     try {
-      const authData = localStorage.getItem('kfpl_auth');
-
-      if (authData) {
-        const token = JSON.parse(authData)?.token;
-
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
+      const token = getAuthToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
       }
     } catch (err) {
-      console.error('Failed to parse auth data:', err);
+      console.error('Failed to attach auth token:', err);
     }
 
     return config;
@@ -47,7 +43,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('kfpl_auth');
+      clearAuthData();
       window.location.href = '/login';
     }
 

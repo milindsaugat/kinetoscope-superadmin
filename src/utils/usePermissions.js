@@ -5,18 +5,9 @@
    ============================================================ */
 
 import { useMemo } from 'react';
+import { getAuthUser } from './authStorage';
 
-export function getAuthUser() {
-  try {
-    const raw = localStorage.getItem('kfpl_auth');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    const root = parsed?.admin || parsed;
-    return root?.admin || root?.data || root?.user || root || null;
-  } catch {
-    return null;
-  }
-}
+export { getAuthUser };
 
 export function usePermissions() {
   const user = useMemo(() => getAuthUser(), []);

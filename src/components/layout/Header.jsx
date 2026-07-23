@@ -9,6 +9,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getApiUrl } from '../../config/apiUrl';
 import { apiRequest } from '../../config/apiHelper';
+import { getAuthToken, clearAuthData, getAuthUser } from '../../utils/authStorage';
 
 // ── Route to Title & Breadcrumb Map ───────────────────────
 const routeConfig = {
@@ -73,17 +74,7 @@ export default function Header({ isCollapsed, onMenuClick }) {
   const requestRef = useRef(null);
 
   // Read logged-in admin info
-  const authData = localStorage.getItem('kfpl_auth');
-  let adminInfo = null;
-  if (authData) {
-    try {
-      const parsed = JSON.parse(authData);
-      const root = parsed?.admin || parsed;
-      adminInfo = root?.admin || root?.data || root?.user || root;
-    } catch (e) {
-      console.error('Failed to parse authData', e);
-    }
-  }
+  const adminInfo = getAuthUser();
   const adminName = adminInfo?.name || 'Super Admin';
   const adminEmail = adminInfo?.email || 'admin@kfpl.com';
   const adminRole = adminInfo?.role || 'super-admin';
@@ -349,8 +340,7 @@ export default function Header({ isCollapsed, onMenuClick }) {
   }, [searchQuery, clientsList, agentsList, faqsList]);
 
   const handleLogout = async () => {
-    const authData = localStorage.getItem('kfpl_auth');
-    const token = authData ? JSON.parse(authData)?.token : null;
+    const token = getAuthToken();
     if (token) {
       try {
         await fetch(getApiUrl('/api/auth/logout'), {
@@ -363,7 +353,7 @@ export default function Header({ isCollapsed, onMenuClick }) {
         console.error('Failed to log out from server', err);
       }
     }
-    localStorage.removeItem('kfpl_auth');
+    clearAuthData();
     navigate('/login');
   };
 

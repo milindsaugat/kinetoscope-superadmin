@@ -13,6 +13,7 @@ import { useToast } from '../../components/ui/Toast';
 import { apiRequest } from '../../config/apiHelper';
 import { getApiUrl } from '../../config/apiUrl';
 import { usePermissions } from '../../utils/usePermissions';
+import { getAuthToken } from '../../utils/authStorage';
 const formatClientID = (rawId) => {
   if (!rawId || rawId === '—') return '—';
   if (rawId.startsWith('KFPL-CL-')) return rawId;
@@ -509,12 +510,7 @@ export default function InvestorDetail() {
         
         const headers = {};
         if (!isCloudinary) {
-          const authData = localStorage.getItem('kfpl_auth');
-          let token = '';
-          if (authData) {
-            const parsed = JSON.parse(authData);
-            token = parsed.token || '';
-          }
+          const token = getAuthToken();
           if (token) {
             headers['Authorization'] = `Bearer ${token}`;
           }
@@ -1282,12 +1278,7 @@ export default function InvestorDetail() {
 
     addToast('Starting secure file download...', 'info', 'Downloading');
     try {
-      const authData = localStorage.getItem('kfpl_auth');
-      let token = '';
-      if (authData) {
-        const parsed = JSON.parse(authData);
-        token = parsed.token || '';
-      }
+      const token = getAuthToken();
 
       const headers = {};
       if (token) {

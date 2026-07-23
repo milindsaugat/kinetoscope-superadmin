@@ -6,6 +6,7 @@
    ============================================================ */
 
 import { getApiUrl } from './apiUrl';
+import { getAuthToken } from '../utils/authStorage';
 
 /**
  * Make an authenticated API request.
@@ -14,16 +15,7 @@ import { getApiUrl } from './apiUrl';
  * @returns {Promise<object>} Parsed JSON response
  */
 export async function apiRequest(path, options = {}) {
-  const authData = localStorage.getItem('kfpl_auth');
-  let token = '';
-  if (authData) {
-    try {
-      const parsed = JSON.parse(authData);
-      token = parsed.token || '';
-    } catch (e) {
-      console.error('Failed to parse auth data:', e);
-    }
-  }
+  const token = getAuthToken();
 
   const url = getApiUrl(path);
 
